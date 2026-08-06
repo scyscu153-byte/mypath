@@ -228,9 +228,12 @@ export default async function handler(req, res) {
     return res.send(text);
   } catch (err) {
     if (err.name === 'AbortError') {
+      // ★안내 문구에 상한을 숫자로 박아두지 않는다.★
+      //   전에 "최대 35초"라고 적어뒀는데 상한을 50초로 올린 뒤에도 문구가 그대로여서,
+      //   화면이 실제와 다른 숫자를 말하고 있었다. 상수에서 계산한다.
       return res.status(504).json({
-        error: '게이트웨이 응답이 시간 내에 오지 않았습니다',
-        hint: 'sonar-pro 검색은 최대 35초가 걸립니다. 잠시 후 다시 시도하세요',
+        error: `실시간 검색이 ${UPSTREAM_TIMEOUT_MS / 1000}초 안에 끝나지 않았습니다`,
+        hint: '외부 검색이 평소보다 오래 걸리고 있습니다. 다시 시도하면 대개 됩니다',
       });
     }
     return res.status(502).json({ error: '게이트웨이 호출 실패', detail: String(err) });
