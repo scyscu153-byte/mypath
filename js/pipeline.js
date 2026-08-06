@@ -192,10 +192,15 @@ ${DOMAIN_GUARD}
 
 ${NO_JUDGMENT_GUARD}
 
-찾아볼 곳 (모두 ${ALLOWED_DOMAIN} 하위):
-www.mjc.ac.kr(대학 공지) / swd.mjc.ac.kr(학생역량개발) / sanhak.mjc.ac.kr(산학협력·현장실습)
-rise.mjc.ac.kr(RISE사업단) / cls.mjc.ac.kr(학과 공지) / mpu.mjc.ac.kr(SMART CARE 비교과)
-mrcc.mjc.ac.kr / edu.mjc.ac.kr / life.mjc.ac.kr / inter.mjc.ac.kr
+찾아볼 곳 (모두 ${ALLOWED_DOMAIN} 하위 — 직접 조사해 확인한 목록이다):
+- www.mjc.ac.kr    대학 공지·학사공지. 비교과·자격증·장학 공지가 가장 많다
+- cls.mjc.ac.kr    학과 공지판. 전교 공지를 미러링해 제목이 온전히 실린다
+- mpu.mjc.ac.kr    SMART CARE 비교과 프로그램
+- sanhak.mjc.ac.kr 산학협력·현장실습(WE-GO, Co-op)·캡스톤디자인
+- rise.mjc.ac.kr   RISE사업단. 다만 상당수가 성인학습자 대상이다
+- inter.mjc.ac.kr  국제교류·글로벌 현장학습
+- mrcc.mjc.ac.kr   지역협력·리빙랩
+- edu.mjc.ac.kr    평생교육원
 ${JSON_ONLY}`,
     user: `아래 역량을 기를 수 있는 명지전문대학 교내 프로그램을 찾아줘.
 
