@@ -9,10 +9,9 @@ import * as pipeline from './pipeline.js';
 import * as mockPipeline from './mock.js';
 import { getUsage, setUserKey, getUserKey, hasUserKey } from './gateway.js';
 import { DEMO_PROFILE, DEMO_TARGETS } from './demo.js';
-import { markCompleted } from './profile.js';
+import { loadProfile, saveProfile as persistProfile, clearProfile, markCompleted } from './profile.js';
 import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
 
-const STORAGE_KEY = 'mypath.profile';
 const useMock = new URLSearchParams(location.search).has('mock');
 const impl = useMock ? mockPipeline : pipeline;
 
@@ -26,21 +25,13 @@ let currentMatches = [];
 let currentMeta = {};
 
 // ─────────────────────────────────────────────
-//  로컬 저장
+//  로컬 저장 — js/profile.js 로 통합 (이전엔 이 파일에 별도로 loadProfile/saveProfile이
+//  중복 구현돼 있었다. 같은 localStorage 키를 쓰긴 했지만 로직이 두 군데 있으면
+//  한쪽만 고치고 잊어버리기 쉽다. profile.js 하나로 합친다.)
 // ─────────────────────────────────────────────
 
-function loadProfile() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
 function saveProfile() {
-  profile.updatedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  profile = persistProfile(profile);
 }
 
 // ─────────────────────────────────────────────
@@ -159,7 +150,26 @@ function goReport() {
 }
 
 function goProfile() {
-  renderProfile(mountOf('profile'), profile, { onNewTarget: goTarget });
+  renderProfile(mountOf('profile'), profile, {
+    onNewTarget: goTarget,
+    onSave: (partial) => {
+      profile.grade = partial.grade;
+      profile.age = partial.age;
+      profile.department = partial.department;
+      profile.certificates = partial.certificates;
+      profile.skills = partial.skills;
+      profile.traits = { activityPreference: partial.activityPreference };
+      saveProfile();
+      goProfile(); // 저장 후 뷰 모드로 다시 그린다 (수정된 값 즉시 반영)
+    },
+    onReset: () => {
+      clearProfile();
+      profile = null;
+      currentTarget = null;
+      currentMatches = [];
+      goOnboarding();
+    },
+  });
   showScreen('profile');
 }
 

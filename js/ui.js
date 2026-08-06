@@ -479,13 +479,34 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
 // ═══════════════════════════════════════════════════════════
 
 /**
+ * 기술을 "직접 입력"과 "프로그램 이수"로 나눈다.
+ * 후자는 completedActivities와 연결돼 있어 수정 화면에서 자유 편집을 막는다
+ * (개선사항.md P0-3 §5 — 지우면 이행 이력과 어긋난다는 걸 알려야 함).
+ */
+function splitSkills(skills) {
+  const list = skills || [];
+  const earned = list.filter((s) => typeof s !== 'string' && s?.level === '프로그램 이수');
+  const direct = list.filter((s) => !earned.includes(s));
+  return { direct, earned };
+}
+
+/**
  * @param {HTMLElement} mount
  * @param {import('./types.js').Profile} profile
- * @param {{onNewTarget: () => void}} handlers
+ * @param {{onNewTarget: () => void, onSave: (partial: object) => void, onReset: () => void}} handlers
  */
-export function renderProfile(mount, profile, { onNewTarget }) {
+export function renderProfile(mount, profile, handlers) {
+  renderProfileView(mount, profile, handlers);
+}
+
+function renderProfileView(mount, profile, handlers) {
+  const { onNewTarget } = handlers;
+
   mount.innerHTML = `
-    <h2 class="text-xl font-bold mb-6">마이 프로필</h2>
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold">마이 프로필</h2>
+      <button id="btn-profile-edit" class="text-xs text-brand-400 hover:underline">프로필 수정</button>
+    </div>
 
     <div class="rounded-lg border border-ink-600 p-4 space-y-4">
       <div class="grid grid-cols-2 gap-3 text-sm">
@@ -521,7 +542,138 @@ export function renderProfile(mount, profile, { onNewTarget }) {
       class="w-full mt-6 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
       새 목표 설정하기
     </button>
+
+    <button id="btn-profile-reset"
+      class="w-full mt-3 text-xs text-slate-500 hover:text-red-400 transition-colors py-1">
+      프로필 초기화
+    </button>
   `;
 
   mount.querySelector('#btn-profile-new-target').addEventListener('click', onNewTarget);
+  mount.querySelector('#btn-profile-edit').addEventListener('click', () => renderProfileEdit(mount, profile, handlers));
+  mount.querySelector('#btn-profile-reset').addEventListener('click', () => confirmReset(mount, handlers));
+}
+
+function renderProfileEdit(mount, profile, handlers) {
+  const { direct, earned } = splitSkills(profile.skills);
+  const pref = profile.traits?.activityPreference || null;
+
+  mount.innerHTML = `
+    <h2 class="text-xl font-bold mb-6">프로필 수정</h2>
+
+    <form id="form-profile-edit" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <label class="block">
+          <span class="text-sm text-slate-300">학년</span>
+          <select name="grade" class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm">
+            ${[1, 2, 3].map((g) => `<option value="${g}" ${profile.grade === g ? 'selected' : ''}>${g}학년</option>`).join('')}
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-sm text-slate-300">나이 <span class="text-slate-500">(선택)</span></span>
+          <input name="age" type="number" min="15" max="99" value="${profile.age ?? ''}"
+            class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+        </label>
+      </div>
+
+      <label class="block">
+        <span class="text-sm text-slate-300">학과</span>
+        <input name="department" type="text" required value="${esc(profile.department)}"
+          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+      </label>
+
+      <label class="block">
+        <span class="text-sm text-slate-300">보유 자격증 <span class="text-slate-500">(쉼표로 구분)</span></span>
+        <input name="certificates" type="text" value="${esc((profile.certificates || []).join(', '))}"
+          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+      </label>
+
+      <label class="block">
+        <span class="text-sm text-slate-300">보유 기술 <span class="text-slate-500">(직접 입력한 것만 — 쉼표로 구분)</span></span>
+        <input name="skills" type="text" value="${esc(direct.map(normSkillName).join(', '))}"
+          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+      </label>
+
+      ${
+        earned.length
+          ? `<div class="rounded border border-ink-600 bg-ink-800/40 p-3">
+              <p class="text-xs text-slate-400 mb-1.5">프로그램 이수로 얻은 기술 <span class="text-slate-600">(여기서 수정할 수 없음)</span></p>
+              <div>${chipList(earned)}</div>
+              <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+                이 기술은 프로그램 이행 이력과 연결되어 있습니다.
+                내 프로필 화면에서 해당 이행 기록을 취소하면 함께 사라집니다.
+              </p>
+            </div>`
+          : ''
+      }
+
+      <fieldset class="pt-2">
+        <legend class="text-sm text-slate-300 mb-2">참여 방식 선호 <span class="text-slate-500">(선택)</span></legend>
+        <div class="flex gap-4 text-sm">
+          <label class="flex items-center gap-1.5">
+            <input type="radio" name="activityPreference" value="team" class="bg-ink-800 border-ink-600" ${pref === 'team' ? 'checked' : ''} /> 팀 활동 선호
+          </label>
+          <label class="flex items-center gap-1.5">
+            <input type="radio" name="activityPreference" value="solo" class="bg-ink-800 border-ink-600" ${pref === 'solo' ? 'checked' : ''} /> 개인 활동 선호
+          </label>
+          <label class="flex items-center gap-1.5">
+            <input type="radio" name="activityPreference" value="" class="bg-ink-800 border-ink-600" ${!pref ? 'checked' : ''} /> 선택 안 함
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="flex gap-2 pt-2">
+        <button type="submit" class="flex-1 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">저장하기</button>
+        <button type="button" id="btn-profile-cancel" class="rounded border border-ink-600 hover:border-brand-400 transition-colors px-4 py-2.5 text-sm text-slate-300">취소</button>
+      </div>
+    </form>
+  `;
+
+  const form = mount.querySelector('#form-profile-edit');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const toList = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
+    handlers.onSave({
+      grade: Number(fd.get('grade')),
+      age: fd.get('age') ? Number(fd.get('age')) : null,
+      department: String(fd.get('department') || '').trim(),
+      certificates: toList(fd.get('certificates')),
+      // 직접 입력 기술 + 프로그램 이수 기술(그대로 보존)을 합친다
+      skills: [...toList(fd.get('skills')), ...earned],
+      activityPreference: fd.get('activityPreference') || null,
+    });
+  });
+
+  mount.querySelector('#btn-profile-cancel').addEventListener('click', () => renderProfileView(mount, profile, handlers));
+}
+
+function normSkillName(s) {
+  return typeof s === 'string' ? s : String(s?.name ?? '');
+}
+
+function confirmReset(mount, handlers) {
+  if (document.getElementById('reset-confirm')) return;
+
+  const el = document.createElement('div');
+  el.id = 'reset-confirm';
+  el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4';
+  el.innerHTML = `
+    <div class="w-full max-w-sm rounded-lg border border-ink-600 bg-ink-900 p-6" role="dialog" aria-modal="true">
+      <p class="text-slate-100 font-medium mb-1">정말 프로필과 이행 이력을 모두 삭제할까요?</p>
+      <p class="text-sm text-slate-500 mb-5">이 작업은 되돌릴 수 없습니다.</p>
+      <div class="flex gap-2">
+        <button id="reset-cancel" class="flex-1 rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-sm text-slate-300">취소</button>
+        <button id="reset-confirm-btn" class="flex-1 rounded bg-red-500 hover:bg-red-400 transition-colors py-2 text-sm font-medium text-white">삭제</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  const close = () => el.remove();
+  el.querySelector('#reset-cancel').addEventListener('click', close);
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  el.querySelector('#reset-confirm-btn').addEventListener('click', () => {
+    close();
+    handlers.onReset();
+  });
 }
