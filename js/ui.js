@@ -30,14 +30,14 @@ function esc(str) {
  * 성장 루프(이행 체크 → 내 프로필)를 누르면 반드시 지나가는 경로다.
  */
 function chipList(items) {
-  if (!items || items.length === 0) return '<span class="text-slate-500">없음</span>';
+  if (!items || items.length === 0) return '<span class="text-secondary">없음</span>';
   return items
     .map((i) => {
       const name = typeof i === 'string' ? i : String(i?.name ?? '');
       const level = typeof i === 'string' ? '' : String(i?.level ?? '');
       if (!name) return '';
-      const suffix = level ? `<span class="text-slate-400"> · ${esc(level)}</span>` : '';
-      return `<span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded bg-ink-700 text-xs text-slate-200">${esc(name)}${suffix}</span>`;
+      const suffix = level ? `<span class="text-secondary"> · ${esc(level)}</span>` : '';
+      return `<span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded bg-slate-100 text-xs text-maintext">${esc(name)}${suffix}</span>`;
     })
     .join('');
 }
@@ -54,43 +54,43 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
   mount.innerHTML = `
     <div class="flex items-start justify-between gap-4 mb-1">
       <h2 class="text-xl font-bold">먼저, 나에 대해 알려주세요</h2>
-      ${demoProfile ? `<button type="button" id="btn-fill-demo-profile" class="shrink-0 text-xs text-brand-400 hover:underline">데모 데이터로 채우기</button>` : ''}
+      ${demoProfile ? `<button type="button" id="btn-fill-demo-profile" class="shrink-0 text-xs text-mjcblue hover:underline">데모 데이터로 채우기</button>` : ''}
     </div>
-    <p class="text-sm text-slate-400 mb-6">한 번만 입력하면 됩니다. 이후엔 활동에 참여할 때마다 자동으로 쌓여요.</p>
+    <p class="text-sm text-secondary mb-6">한 번만 입력하면 됩니다. 이후엔 활동에 참여할 때마다 자동으로 쌓여요.</p>
 
     <form id="form-onboarding" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <label class="block">
-          <span class="text-sm text-slate-300">학년</span>
-          <select name="grade" class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm">
+          <span class="text-sm text-maintext">학년</span>
+          <select name="grade" class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm">
             <option value="1">1학년</option>
             <option value="2">2학년</option>
             <option value="3">3학년</option>
           </select>
         </label>
         <label class="block">
-          <span class="text-sm text-slate-300">나이 <span class="text-slate-500">(선택)</span></span>
+          <span class="text-sm text-maintext">나이 <span class="text-secondary">(선택)</span></span>
           <input name="age" type="number" min="15" max="99" placeholder="예: 20"
-            class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+            class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
         </label>
       </div>
 
       <label class="block">
-        <span class="text-sm text-slate-300">학과</span>
+        <span class="text-sm text-maintext">학과</span>
         <input name="department" type="text" required placeholder="예: AI게임소프트웨어학과"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">보유 자격증 <span class="text-slate-500">(쉼표로 구분, 없으면 비워두세요)</span></span>
+        <span class="text-sm text-maintext">보유 자격증 <span class="text-secondary">(쉼표로 구분, 없으면 비워두세요)</span></span>
         <input name="certificates" type="text" placeholder="예: 컴활2급, 정보처리기능사"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">보유 기술 <span class="text-slate-500">(쉼표로 구분)</span></span>
+        <span class="text-sm text-maintext">보유 기술 <span class="text-secondary">(쉼표로 구분)</span></span>
         <input name="skills" type="text" placeholder="예: C#, Unity, HTML/CSS"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <!--
@@ -100,14 +100,14 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
           우리가 판정하는 게 아니라 ★본인이 직접 선택★하는 것이다.
       -->
       <fieldset class="pt-1">
-        <legend class="text-sm text-slate-300 mb-2">
-          지원 대상 <span class="text-slate-500">(선택 — 해당하면 관련 프로그램도 함께 찾아드려요)</span>
+        <legend class="text-sm text-maintext mb-2">
+          지원 대상 <span class="text-secondary">(선택 — 해당하면 관련 프로그램도 함께 찾아드려요)</span>
         </legend>
         <label class="flex items-start gap-2">
-          <input name="supportDisability" type="checkbox" class="mt-1 rounded bg-ink-800 border-ink-600" />
-          <span class="text-sm text-slate-300">
+          <input name="supportDisability" type="checkbox" class="mt-1 rounded bg-white border-line" />
+          <span class="text-sm text-maintext">
             장애학생 지원 대상입니다
-            <span class="block text-xs text-slate-500">
+            <span class="block text-xs text-secondary">
               체크하지 않으면 장애학생 대상 프로그램은 추천에서 제외합니다.
               이 정보는 이 브라우저에만 저장되며 어디로도 전송되지 않습니다.
             </span>
@@ -116,7 +116,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
       </fieldset>
 
       <button type="submit"
-        class="w-full mt-2 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
+        class="w-full mt-2 rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2.5 text-sm font-semibold text-white">
         시작하기
       </button>
     </form>
@@ -163,19 +163,19 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
 export function renderTarget(mount, { onSubmit, demoTargets }) {
   mount.innerHTML = `
     <h2 class="text-xl font-bold mb-1">어떤 목표를 향해 가고 있나요?</h2>
-    <p class="text-sm text-slate-400 mb-6">기업명을 정확히 몰라도 괜찮습니다. 직군이나 분야만 적어도 됩니다.</p>
+    <p class="text-sm text-secondary mb-6">기업명을 정확히 몰라도 괜찮습니다. 직군이나 분야만 적어도 됩니다.</p>
 
     ${
       demoTargets && demoTargets.length
         ? `<div class="mb-5">
-            <p class="text-xs text-slate-500 mb-2">빠른 선택</p>
+            <p class="text-xs text-secondary mb-2">빠른 선택</p>
             <div class="flex flex-wrap gap-2">
               ${demoTargets
                 .map(
                   (t, i) => `
                 <button type="button" data-demo-target-index="${i}"
                   title="${esc(t.why || '')}"
-                  class="demo-target-chip text-xs px-3 py-1.5 rounded-full border border-ink-600 text-slate-300 hover:border-brand-400 hover:text-brand-400 transition-colors">
+                  class="demo-target-chip text-xs px-3 py-1.5 rounded-full border border-line text-maintext hover:border-mjcblue hover:text-mjcblue transition-colors">
                   ${esc(t.label)}
                 </button>`
                 )
@@ -187,45 +187,45 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
 
     <form id="form-target" class="space-y-4">
       <label class="block">
-        <span class="text-sm text-slate-300">목표 기업 또는 직군</span>
+        <span class="text-sm text-maintext">목표 기업 또는 직군</span>
         <!-- maxlength: 이 값은 리포트 제목에 그대로 들어간다. 길이를 안 막으면 화면이 뚫린다. -->
         <input name="companyOrRole" type="text" required maxlength="60" placeholder="예: 게임 클라이언트 개발자, 네이버, 스타트업 백엔드"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
-        <span id="target-hint" class="mt-1 block text-xs text-slate-500"></span>
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
+        <span id="target-hint" class="mt-1 block text-xs text-secondary"></span>
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">채용공고 링크 <span class="text-slate-500">(선택 — 넣으면 그 공고를 직접 근거로 분석해요)</span></span>
+        <span class="text-sm text-maintext">채용공고 링크 <span class="text-secondary">(선택 — 넣으면 그 공고를 직접 근거로 분석해요)</span></span>
         <input name="jobPostingUrl" type="url" placeholder="예: https://careers.example.com/jobs/1234"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">관심 분야 <span class="text-slate-500">(선택 — 전공과 관련 없어도 참여하고 싶은 분야)</span></span>
+        <span class="text-sm text-maintext">관심 분야 <span class="text-secondary">(선택 — 전공과 관련 없어도 참여하고 싶은 분야)</span></span>
         <input name="interestAreas" type="text" maxlength="60" placeholder="예: 어학, 자격증, 봉사활동"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
-        <span class="mt-1 block text-xs text-slate-500">부족한 역량과 별개로, 이 분야 프로그램도 따로 찾아드려요.</span>
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
+        <span class="mt-1 block text-xs text-secondary">부족한 역량과 별개로, 이 분야 프로그램도 따로 찾아드려요.</span>
       </label>
 
       <label class="flex items-center gap-2">
-        <input name="globalInterest" type="checkbox" class="rounded bg-ink-800 border-ink-600" />
-        <span class="text-sm text-slate-300">해외/글로벌 진출도 고려하고 있어요</span>
+        <input name="globalInterest" type="checkbox" class="rounded bg-white border-line" />
+        <span class="text-sm text-maintext">해외/글로벌 진출도 고려하고 있어요</span>
       </label>
 
       <fieldset class="pt-2">
-        <legend class="text-sm text-slate-300 mb-2">활동 스타일 <span class="text-slate-500">(선택, 추천에 살짝 반영돼요)</span></legend>
+        <legend class="text-sm text-maintext mb-2">활동 스타일 <span class="text-secondary">(선택, 추천에 살짝 반영돼요)</span></legend>
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1.5">
-            <input type="radio" name="activityPreference" value="team" class="bg-ink-800 border-ink-600" /> 팀 활동 선호
+            <input type="radio" name="activityPreference" value="team" class="bg-white border-line" /> 팀 활동 선호
           </label>
           <label class="flex items-center gap-1.5">
-            <input type="radio" name="activityPreference" value="solo" class="bg-ink-800 border-ink-600" /> 개인 활동 선호
+            <input type="radio" name="activityPreference" value="solo" class="bg-white border-line" /> 개인 활동 선호
           </label>
         </div>
       </fieldset>
 
       <button type="submit"
-        class="w-full mt-2 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
+        class="w-full mt-2 rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2.5 text-sm font-semibold text-white">
         내게 맞는 프로그램 찾기
       </button>
     </form>
@@ -251,8 +251,8 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
       if (!t) return;
       form.companyOrRole.value = t.value;
       mount.querySelector('#target-hint').textContent = t.hint || '';
-      mount.querySelectorAll('.demo-target-chip').forEach((c) => c.classList.remove('border-brand-400', 'text-brand-400'));
-      chip.classList.add('border-brand-400', 'text-brand-400');
+      mount.querySelectorAll('.demo-target-chip').forEach((c) => c.classList.remove('border-mjcblue', 'text-mjcblue'));
+      chip.classList.add('border-mjcblue', 'text-mjcblue');
     });
   });
 }
@@ -273,13 +273,13 @@ export function renderProgress(mount) {
     <ul id="stage-list" class="space-y-3">
       ${STAGE_ORDER.map(
         (stage) => `
-        <li data-stage="${stage}" class="flex items-center gap-3 rounded border border-ink-600 px-4 py-3 text-sm text-slate-400">
-          <span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-ink-600"></span>
+        <li data-stage="${stage}" class="flex items-center gap-3 rounded border border-line bg-white px-4 py-3 text-sm text-secondary">
+          <span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-line"></span>
           <span class="stage-label">${esc(STAGE_LABEL[stage])}</span>
         </li>`
       ).join('')}
     </ul>
-    <div id="stage-detail" class="mt-6 text-sm text-slate-400 space-y-1"></div>
+    <div id="stage-detail" class="mt-6 text-sm text-secondary space-y-1"></div>
   `;
 
   const detail = mount.querySelector('#stage-detail');
@@ -292,35 +292,35 @@ export function renderProgress(mount) {
       // 최소한 오류 문구는 반드시 남긴다.
       if (event.status === 'error') {
         mount.querySelectorAll('.stage-icon.animate-spin').forEach((el) => {
-          el.outerHTML = '<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-500"></span>';
+          el.outerHTML = '<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>';
         });
         detail.insertAdjacentHTML('beforeend',
-          `<p class="text-red-400">${esc(event.message || '오류가 발생했어요')}</p>
-           <p class="text-slate-500 text-xs">잠시 후 다시 시도해주세요.</p>`);
+          `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>
+           <p class="text-secondary text-xs">잠시 후 다시 시도해주세요.</p>`);
       }
       return;
     }
     const icon = li.querySelector('.stage-icon');
 
     if (event.status === 'start') {
-      li.classList.remove('text-slate-400');
-      li.classList.add('text-slate-100');
-      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-brand-400 border-t-transparent animate-spin"></span>`;
+      li.classList.remove('text-secondary');
+      li.classList.add('text-maintext');
+      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-mjcblue border-t-transparent animate-spin"></span>`;
     } else if (event.status === 'done') {
       const doneIcon = li.querySelector('.stage-icon');
-      doneIcon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-brand-500 flex items-center justify-center text-[10px] text-white">✓</span>`;
+      doneIcon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-mjcblue flex items-center justify-center text-[10px] text-white">✓</span>`;
 
       if (event.stage === STAGE.REQUIRED_SKILLS && Array.isArray(event.data)) {
         // 역량 이름만 나열하면 "이거 출처 있는 거 맞아?"라는 질문에 답할 수 없다.
         // 실제 채용공고 URL을 눈으로 확인할 수 있게 링크로 건다.
         detail.insertAdjacentHTML(
           'beforeend',
-          `<p><strong class="text-slate-300">이 목표에 필요한 역량</strong></p>
+          `<p><strong class="text-maintext">이 목표에 필요한 역량</strong></p>
            <ul class="mt-1 space-y-0.5">
              ${event.data
                .map(
                  (s) => `<li>${esc(s.name)}
-                   ${s.sourceUrl ? `<a href="${esc(s.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">(근거 보기 ↗)</a>` : ''}
+                   ${s.sourceUrl ? `<a href="${esc(s.sourceUrl)}" target="_blank" rel="noopener" class="text-mjcblue hover:underline">(근거 보기 ↗)</a>` : ''}
                  </li>`
                )
                .join('')}
@@ -330,12 +330,12 @@ export function renderProgress(mount) {
       if (event.stage === STAGE.GAP_ANALYSIS && Array.isArray(event.data)) {
         detail.insertAdjacentHTML(
           'beforeend',
-          `<p><strong class="text-slate-300">내가 채워야 할 부분:</strong> ${event.data.map((g) => esc(g.name)).join(', ')}</p>`
+          `<p><strong class="text-maintext">내가 채워야 할 부분:</strong> ${event.data.map((g) => esc(g.name)).join(', ')}</p>`
         );
       }
     } else if (event.status === 'error') {
-      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-500"></span>`;
-      detail.insertAdjacentHTML('beforeend', `<p class="text-red-400">${esc(event.message || '오류가 발생했어요')}</p>`);
+      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>`;
+      detail.insertAdjacentHTML('beforeend', `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>`);
     }
   };
 }
@@ -354,17 +354,17 @@ function personaGrid(personaScores) {
         // 이때 "null/10" 이 찍히면 안 된다 — 실패는 실패라고 적는다.
         const failed = !Number.isFinite(v.score);
         const scoreCell = failed
-          ? `<span class="font-mono text-slate-600">– /10</span>`
-          : `<span class="font-mono text-brand-400">${v.score}/10</span>`;
+          ? `<span class="font-mono text-secondary">– /10</span>`
+          : `<span class="font-mono text-mjcblue">${v.score}/10</span>`;
         const model = PERSONA_MODEL[p.key] || '';
         return `
-          <div class="rounded bg-ink-800 border border-ink-600 px-2.5 py-2 ${failed ? 'opacity-60' : ''}">
-            <div class="flex items-center justify-between text-[11px] text-slate-400">
-              <span>${esc(p.label)} <span class="text-slate-600">· ${esc(p.sub)}</span></span>
+          <div class="rounded bg-white border border-line px-2.5 py-2 ${failed ? 'opacity-60' : ''}">
+            <div class="flex items-center justify-between text-[11px] text-secondary">
+              <span>${esc(p.label)} <span class="text-secondary">· ${esc(p.sub)}</span></span>
               ${scoreCell}
             </div>
-            <p class="text-xs ${failed ? 'text-slate-500' : 'text-slate-300'} mt-1 leading-snug">${esc(v.comment)}</p>
-            ${model ? `<p class="text-[10px] text-slate-600 mt-1 font-mono">${esc(model)}</p>` : ''}
+            <p class="text-xs ${failed ? 'text-secondary' : 'text-maintext'} mt-1 leading-snug">${esc(v.comment)}</p>
+            ${model ? `<p class="text-[10px] text-secondary mt-1 font-mono">${esc(model)}</p>` : ''}
           </div>`;
       }).join('')}
     </div>
@@ -383,8 +383,8 @@ function availabilityBadge(match) {
   const meta = AVAILABILITY_META[match.availability] || AVAILABILITY_META.unknown;
   // ongoing("상시 모집 중")은 unknown과 달리 확신도가 높은 정보라 같은 긍정 톤을 준다.
   const tone = match.availability === 'open' || match.availability === 'upcoming' || match.availability === 'ongoing'
-    ? 'bg-emerald-500/15 text-emerald-300'
-    : 'bg-amber-500/15 text-amber-300';
+    ? 'bg-growth/10 text-growth'
+    : 'bg-warn/15 text-amber-700';
   return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded ${tone} text-[11px] font-medium">
     ${meta.emoji} ${esc(meta.label)}
   </span>`;
@@ -393,10 +393,10 @@ function availabilityBadge(match) {
 /** P0-1 출처 검증 배지. null(검증 안 됨)이면 아무것도 그리지 않는다 — 검증은 있으면 좋은 정보이지 전제조건이 아니다. */
 function sourceStatusBadge(match) {
   if (match.sourceStatus === 'verified') {
-    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">✅ 링크 확인됨</span>`;
+    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-skysurface text-mjcblue text-[11px]">✅ 링크 확인됨</span>`;
   }
   if (match.sourceStatus === 'unverified') {
-    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[11px]">⚠️ 원문 확인 필요</span>`;
+    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-warn/15 text-amber-700 text-[11px]">⚠️ 원문 확인 필요</span>`;
   }
   return '';
 }
@@ -426,28 +426,28 @@ function programCard(match) {
   const disagreementBadge = scores.length < 2
     ? ''
     : match.disagreement >= 0.5
-      ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-medium">⚡ 의견이 갈렸어요 · ${spread}점 차</span>`
-      : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-ink-700 text-slate-400 text-[11px]">4개 관점 ${spread}점 차</span>`;
+      ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-warn/20 text-amber-700 text-[11px] font-medium">⚡ 의견이 갈렸어요 · ${spread}점 차</span>`
+      : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-slate-100 text-secondary text-[11px]">4개 관점 ${spread}점 차</span>`;
 
   // ★ 이 항목이 실시간 검색에서 왔는지, 미리 수집해둔 데이터에서 왔는지 숨기지 않는다.
   //   "실시간 검색"이라고 말한 화면에 수집 데이터가 표시 없이 섞이면 그게 약점이 된다.
   //   구분해서 적으면 오히려 근거가 된다.
   const originBadge = match.origin === 'collected'
-    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[11px]">사전 조사 자료</span>`
-    : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">방금 검색한 결과</span>`;
+    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-skysurface text-mjcblue text-[11px]">사전 조사 자료</span>`
+    : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-growth/10 text-growth text-[11px]">방금 검색한 결과</span>`;
 
   const period = periodText(match);
   const searchQuery = encodeURIComponent(`site:mjc.ac.kr "${match.programTitle}"`);
 
   return `
-    <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-4" data-match-id="${esc(match.id)}">
+    <div class="rounded-lg border border-line bg-white shadow-sm p-4" data-match-id="${esc(match.id)}">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <!-- break-words: 제목·요약은 AI가 쓴 문자열이라 길이를 보장할 수 없다.
                한글은 word-break:keep-all 이 공백에서만 끊으므로, 공백 없는 긴 문자열이 오면
                카드를 뚫고 페이지 전체에 가로 스크롤이 생긴다. -->
-          <h4 class="font-semibold text-slate-100 break-words">${esc(match.programTitle)}</h4>
-          <p class="text-sm text-slate-400 mt-0.5 break-words">${esc(match.summary)}</p>
+          <h4 class="font-semibold text-maintext break-words">${esc(match.programTitle)}</h4>
+          <p class="text-sm text-secondary mt-0.5 break-words">${esc(match.summary)}</p>
         </div>
         <div class="flex flex-col items-end gap-1">
           ${availabilityBadge(match)}
@@ -456,23 +456,23 @@ function programCard(match) {
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-slate-500">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-secondary">
         ${sourceStatusBadge(match)}
         <span>${esc(match.sourceDomain)}</span>
         ${match.postedAt ? `<span>게시일 ${esc(match.postedAt)}</span>` : ''}
       </div>
-      ${period ? `<p class="text-xs text-slate-400 mt-1">${period}</p>` : ''}
+      ${period ? `<p class="text-xs text-secondary mt-1">${period}</p>` : ''}
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
-        <a href="${esc(match.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">공식 공지 열기 ↗</a>
-        <button type="button" class="btn-copy-link text-slate-500 hover:text-slate-300" data-url="${esc(match.sourceUrl)}">링크 복사</button>
-        <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-slate-500 hover:text-slate-300">다른 검색으로 찾아보기 ↗</a>
+        <a href="${esc(match.sourceUrl)}" target="_blank" rel="noopener" class="text-mjcblue hover:underline">공식 공지 열기 ↗</a>
+        <button type="button" class="btn-copy-link text-secondary hover:text-maintext" data-url="${esc(match.sourceUrl)}">링크 복사</button>
+        <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-secondary hover:text-maintext">다른 검색으로 찾아보기 ↗</a>
       </div>
 
       ${personaGrid(match.personaScores)}
 
-      <label class="complete-label mt-4 flex items-center gap-2 text-sm ${match.isCompleted ? 'text-brand-400' : 'text-slate-300'}">
-        <input type="checkbox" class="complete-checkbox rounded bg-ink-800 border-ink-600" ${match.isCompleted ? 'checked disabled' : ''} />
+      <label class="complete-label mt-4 flex items-center gap-2 text-sm ${match.isCompleted ? 'text-mjcblue' : 'text-maintext'}">
+        <input type="checkbox" class="complete-checkbox rounded bg-white border-line" ${match.isCompleted ? 'checked disabled' : ''} />
         <span class="complete-label-text">${match.isCompleted ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
       </label>
     </div>
@@ -515,16 +515,16 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
     <div class="flex items-center justify-between mb-1">
       <h2 class="text-xl font-bold break-words">"${esc(target.companyOrRole)}"에 필요한 걸 채워드릴게요</h2>
     </div>
-    <p class="text-sm text-slate-400 mb-1">${DISCLAIMER.ELIGIBILITY}</p>
-    <p class="text-xs text-slate-500 mb-2">${esc(sourceNote)}</p>
+    <p class="text-sm text-secondary mb-1">${DISCLAIMER.ELIGIBILITY}</p>
+    <p class="text-xs text-secondary mb-2">${esc(sourceNote)}</p>
     <!-- 판별의 한계를 결과 위에 먼저 밝힌다. 발견한 뒤에 알게 되면 신뢰가 깎인다. -->
-    <p class="text-xs text-amber-400/80 mb-6">⚠ ${DISCLAIMER.PURITY}</p>
+    <p class="text-xs text-amber-700/80 mb-6">⚠ ${DISCLAIMER.PURITY}</p>
 
     <div class="space-y-8">
       ${byGap.size === 0 ? `
-        <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-6 text-center">
-          <p class="text-slate-300 font-medium">지금 확인되는 교내 프로그램을 찾지 못했습니다.</p>
-          <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+        <div class="rounded-lg border border-line bg-white shadow-sm p-6 text-center">
+          <p class="text-maintext font-medium">지금 확인되는 교내 프로그램을 찾지 못했습니다.</p>
+          <p class="text-sm text-secondary mt-2 leading-relaxed">
             출처가 없거나 링크가 열리지 않는 항목은 표시하지 않습니다.<br>
             목표를 조금 넓게 적으면 (예: "게임 개발자" → "소프트웨어 개발자") 결과가 나올 수 있습니다.
           </p>
@@ -533,7 +533,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
         .map(
           ([gap, list]) => `
         <section>
-          <h3 class="text-sm font-semibold text-brand-400 mb-3">"${esc(gap)}" 관련 프로그램</h3>
+          <h3 class="text-sm font-semibold text-mjcblue mb-3">"${esc(gap)}" 관련 프로그램</h3>
           <div class="space-y-3">${list.map(programCard).join('')}</div>
         </section>`
         )
@@ -541,7 +541,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
     </div>
 
     <button id="btn-new-target"
-      class="w-full mt-8 rounded border border-ink-600 hover:border-brand-400 transition-colors py-2.5 text-sm font-medium text-slate-300">
+      class="w-full mt-8 rounded border border-line hover:border-mjcblue transition-colors py-2.5 text-sm font-medium text-maintext">
       새 목표로 다시 찾아보기
     </button>
   `;
@@ -573,8 +573,8 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
       e.target.checked = true;
       e.target.disabled = true;
       const label = card.querySelector('.complete-label');
-      label.classList.remove('text-slate-300');
-      label.classList.add('text-brand-400');
+      label.classList.remove('text-maintext');
+      label.classList.add('text-mjcblue');
       card.querySelector('.complete-label-text').textContent = '참여 완료 · 프로필에 반영됨';
     });
   });
@@ -617,35 +617,35 @@ function renderProfileView(mount, profile, handlers) {
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold">내 프로필</h2>
-      <button id="btn-profile-edit" class="text-xs text-brand-400 hover:underline">프로필 수정</button>
+      <button id="btn-profile-edit" class="text-xs text-mjcblue hover:underline">프로필 수정</button>
     </div>
 
-    <div class="rounded-lg border border-ink-600 p-4 space-y-4">
+    <div class="rounded-lg border border-line bg-white shadow-sm p-4 space-y-4">
       <div class="grid grid-cols-2 gap-3 text-sm">
-        <div><span class="text-slate-500">학년</span><p class="text-slate-200">${profile.grade}학년</p></div>
-        <div><span class="text-slate-500">학과</span><p class="text-slate-200">${esc(profile.department)}</p></div>
+        <div><span class="text-secondary">학년</span><p class="text-maintext">${profile.grade}학년</p></div>
+        <div><span class="text-secondary">학과</span><p class="text-maintext">${esc(profile.department)}</p></div>
       </div>
 
       <div>
-        <span class="text-sm text-slate-500">보유 자격증</span>
+        <span class="text-sm text-secondary">보유 자격증</span>
         <div class="mt-1">${chipList(profile.certificates)}</div>
       </div>
 
       <div>
-        <span class="text-sm text-slate-500">보유 기술</span>
+        <span class="text-sm text-secondary">보유 기술</span>
         <div class="mt-1">${chipList(profile.skills)}</div>
       </div>
 
       <div>
-        <span class="text-sm text-slate-500">완료한 활동 (${done.length})</span>
+        <span class="text-sm text-secondary">완료한 활동 (${done.length})</span>
         ${
           done.length
-            ? `<ul class="mt-1 space-y-1 text-sm text-slate-300">
+            ? `<ul class="mt-1 space-y-1 text-sm text-maintext">
                 ${done
-                  .map((a) => `<li class="break-words">· ${esc(a.programTitle)} <span class="text-slate-500">— ${esc(a.gainedSkill)} 역량 획득</span></li>`)
+                  .map((a) => `<li class="break-words">· ${esc(a.programTitle)} <span class="text-secondary">— ${esc(a.gainedSkill)} 역량 획득</span></li>`)
                   .join('')}
                </ul>`
-            : '<p class="mt-1 text-sm text-slate-500">아직 없어요. 추천받은 프로그램에 참여하면 여기 쌓여요.</p>'
+            : '<p class="mt-1 text-sm text-secondary">아직 없어요. 추천받은 프로그램에 참여하면 여기 쌓여요.</p>'
         }
       </div>
     </div>
@@ -653,14 +653,14 @@ function renderProfileView(mount, profile, handlers) {
     ${
       onBackToReport
         ? `<button id="btn-profile-back"
-             class="w-full mt-6 rounded border border-brand-400/40 hover:border-brand-400 transition-colors py-2.5 text-sm font-semibold text-brand-400">
+             class="w-full mt-6 rounded border border-mjcblue/40 hover:border-mjcblue transition-colors py-2.5 text-sm font-semibold text-mjcblue">
              ← 방금 본 추천 결과로 돌아가기
            </button>`
         : ''
     }
 
     <button id="btn-profile-new-target"
-      class="w-full ${onBackToReport ? 'mt-3' : 'mt-6'} rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
+      class="w-full ${onBackToReport ? 'mt-3' : 'mt-6'} rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2.5 text-sm font-semibold text-white">
       새 목표 설정하기
     </button>
 
@@ -670,35 +670,35 @@ function renderProfileView(mount, profile, handlers) {
          방문 기록을 지우면 쌓아온 활동 기록이 사라진다.
          파일로 들고 갈 길을 열어둔다.
          ────────────────────────────────────────────── -->
-    <details class="mt-8 rounded-lg border border-ink-600">
-      <summary class="cursor-pointer select-none px-4 py-3 text-sm text-slate-300 hover:text-slate-100">
+    <details class="mt-8 rounded-lg border border-line bg-white">
+      <summary class="cursor-pointer select-none px-4 py-3 text-sm text-maintext hover:text-mjcblue">
         내 데이터 관리
       </summary>
-      <div class="border-t border-ink-600 px-4 py-4 space-y-3">
-        <p class="text-xs text-slate-500 leading-relaxed">
-          이 서비스는 서버에 계정을 두지 않습니다. 프로필은 <strong class="text-slate-400">이 브라우저에만</strong> 저장되므로,
+      <div class="border-t border-line px-4 py-4 space-y-3">
+        <p class="text-xs text-secondary leading-relaxed">
+          이 서비스는 서버에 계정을 두지 않습니다. 프로필은 <strong class="text-maintext">이 브라우저에만</strong> 저장되므로,
           브라우저를 바꾸거나 방문 기록을 지우면 사라집니다. 파일로 내보내 두면 다른 기기에서 이어서 쓸 수 있습니다.
         </p>
 
         <div class="grid grid-cols-2 gap-2">
           <button id="btn-data-export"
-            class="rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+            class="rounded border border-line hover:border-mjcblue transition-colors py-2 text-xs text-maintext">
             내보내기 (.json)
           </button>
           <button id="btn-data-import"
-            class="rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+            class="rounded border border-line hover:border-mjcblue transition-colors py-2 text-xs text-maintext">
             불러오기
           </button>
         </div>
         <input id="input-data-import" type="file" accept="application/json,.json" class="hidden" />
 
         <button id="btn-data-cache"
-          class="w-full rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+          class="w-full rounded border border-line hover:border-mjcblue transition-colors py-2 text-xs text-maintext">
           저장된 AI 응답 비우기
         </button>
-        <p class="text-xs text-slate-600 leading-relaxed">
+        <p class="text-xs text-secondary leading-relaxed">
           같은 질문을 12시간 안에 다시 하면 크레딧을 쓰지 않고 저장해둔 답을 재사용합니다.
-          <strong class="text-slate-500">최신 공지로 다시 검색하고 싶을 때</strong> 비우세요. 프로필은 지워지지 않습니다.
+          <strong class="text-secondary">최신 공지로 다시 검색하고 싶을 때</strong> 비우세요. 프로필은 지워지지 않습니다.
         </p>
 
         <p id="data-msg" class="text-xs min-h-[1rem]" role="status" aria-live="polite"></p>
@@ -706,7 +706,7 @@ function renderProfileView(mount, profile, handlers) {
     </details>
 
     <button id="btn-profile-reset"
-      class="w-full mt-3 text-xs text-slate-500 hover:text-red-400 transition-colors py-1">
+      class="w-full mt-3 text-xs text-secondary hover:text-red-600 transition-colors py-1">
       프로필 초기화
     </button>
   `;
@@ -727,7 +727,7 @@ function wireDataControls(mount, profile, handlers) {
   const msg = mount.querySelector('#data-msg');
   const say = (text, ok = true) => {
     msg.textContent = text;
-    msg.className = `text-xs min-h-[1rem] ${ok ? 'text-emerald-400' : 'text-red-400'}`;
+    msg.className = `text-xs min-h-[1rem] ${ok ? 'text-growth' : 'text-red-600'}`;
   };
 
   // ── 내보내기 ──
@@ -785,42 +785,42 @@ function renderProfileEdit(mount, profile, handlers) {
     <form id="form-profile-edit" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <label class="block">
-          <span class="text-sm text-slate-300">학년</span>
-          <select name="grade" class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm">
+          <span class="text-sm text-maintext">학년</span>
+          <select name="grade" class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm">
             ${[1, 2, 3].map((g) => `<option value="${g}" ${profile.grade === g ? 'selected' : ''}>${g}학년</option>`).join('')}
           </select>
         </label>
         <label class="block">
-          <span class="text-sm text-slate-300">나이 <span class="text-slate-500">(선택)</span></span>
+          <span class="text-sm text-maintext">나이 <span class="text-secondary">(선택)</span></span>
           <input name="age" type="number" min="15" max="99" value="${profile.age ?? ''}"
-            class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+            class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
         </label>
       </div>
 
       <label class="block">
-        <span class="text-sm text-slate-300">학과</span>
+        <span class="text-sm text-maintext">학과</span>
         <input name="department" type="text" required value="${esc(profile.department)}"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">보유 자격증 <span class="text-slate-500">(쉼표로 구분)</span></span>
+        <span class="text-sm text-maintext">보유 자격증 <span class="text-secondary">(쉼표로 구분)</span></span>
         <input name="certificates" type="text" value="${esc((profile.certificates || []).join(', '))}"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">보유 기술 <span class="text-slate-500">(직접 입력한 것만 — 쉼표로 구분)</span></span>
+        <span class="text-sm text-maintext">보유 기술 <span class="text-secondary">(직접 입력한 것만 — 쉼표로 구분)</span></span>
         <input name="skills" type="text" value="${esc(direct.map(normSkillName).join(', '))}"
-          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+          class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
       </label>
 
       ${
         earned.length
-          ? `<div class="rounded border border-ink-600 bg-ink-800/40 p-3">
-              <p class="text-xs text-slate-400 mb-1.5">활동으로 얻은 기술 <span class="text-slate-600">(여기서 수정할 수 없음)</span></p>
+          ? `<div class="rounded border border-line bg-skysurface p-3">
+              <p class="text-xs text-secondary mb-1.5">활동으로 얻은 기술 <span class="text-secondary">(여기서 수정할 수 없음)</span></p>
               <div>${chipList(earned)}</div>
-              <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+              <p class="text-xs text-secondary mt-2 leading-relaxed">
                 이 기술은 완료한 활동과 연결되어 있습니다.
                 내 프로필 화면에서 해당 활동 기록을 취소하면 함께 사라집니다.
               </p>
@@ -829,23 +829,23 @@ function renderProfileEdit(mount, profile, handlers) {
       }
 
       <fieldset class="pt-2">
-        <legend class="text-sm text-slate-300 mb-2">활동 스타일 <span class="text-slate-500">(선택)</span></legend>
+        <legend class="text-sm text-maintext mb-2">활동 스타일 <span class="text-secondary">(선택)</span></legend>
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1.5">
-            <input type="radio" name="activityPreference" value="team" class="bg-ink-800 border-ink-600" ${pref === 'team' ? 'checked' : ''} /> 팀 활동 선호
+            <input type="radio" name="activityPreference" value="team" class="bg-white border-line" ${pref === 'team' ? 'checked' : ''} /> 팀 활동 선호
           </label>
           <label class="flex items-center gap-1.5">
-            <input type="radio" name="activityPreference" value="solo" class="bg-ink-800 border-ink-600" ${pref === 'solo' ? 'checked' : ''} /> 개인 활동 선호
+            <input type="radio" name="activityPreference" value="solo" class="bg-white border-line" ${pref === 'solo' ? 'checked' : ''} /> 개인 활동 선호
           </label>
           <label class="flex items-center gap-1.5">
-            <input type="radio" name="activityPreference" value="" class="bg-ink-800 border-ink-600" ${!pref ? 'checked' : ''} /> 선택 안 함
+            <input type="radio" name="activityPreference" value="" class="bg-white border-line" ${!pref ? 'checked' : ''} /> 선택 안 함
           </label>
         </div>
       </fieldset>
 
       <div class="flex gap-2 pt-2">
-        <button type="submit" class="flex-1 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">저장하기</button>
-        <button type="button" id="btn-profile-cancel" class="rounded border border-ink-600 hover:border-brand-400 transition-colors px-4 py-2.5 text-sm text-slate-300">취소</button>
+        <button type="submit" class="flex-1 rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2.5 text-sm font-semibold text-white">저장하기</button>
+        <button type="button" id="btn-profile-cancel" class="rounded border border-line hover:border-mjcblue transition-colors px-4 py-2.5 text-sm text-maintext">취소</button>
       </div>
     </form>
   `;
@@ -880,16 +880,16 @@ function confirmReset(mount, handlers) {
   el.id = 'reset-confirm';
   el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4';
   el.innerHTML = `
-    <div class="w-full max-w-sm rounded-lg border border-ink-600 bg-ink-900 p-6" role="dialog" aria-modal="true">
-      <p class="text-slate-100 font-medium mb-1">정말 프로필과 활동 기록을 모두 삭제할까요?</p>
-      <p class="text-sm text-slate-500 mb-2">이 작업은 되돌릴 수 없습니다.</p>
-      <p class="text-xs text-slate-500 mb-5 leading-relaxed">
-        입력해 둔 <strong class="text-slate-400">API 키</strong>와 저장된 AI 응답도 함께 삭제됩니다.
-        기록을 남겨두려면 먼저 <strong class="text-slate-400">내 데이터 관리 → 내보내기</strong>를 이용하세요.
+    <div class="w-full max-w-sm rounded-lg border border-line bg-white p-6" role="dialog" aria-modal="true">
+      <p class="text-maintext font-medium mb-1">정말 프로필과 활동 기록을 모두 삭제할까요?</p>
+      <p class="text-sm text-secondary mb-2">이 작업은 되돌릴 수 없습니다.</p>
+      <p class="text-xs text-secondary mb-5 leading-relaxed">
+        입력해 둔 <strong class="text-maintext">API 키</strong>와 저장된 AI 응답도 함께 삭제됩니다.
+        기록을 남겨두려면 먼저 <strong class="text-maintext">내 데이터 관리 → 내보내기</strong>를 이용하세요.
       </p>
       <div class="flex gap-2">
-        <button id="reset-cancel" class="flex-1 rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-sm text-slate-300">취소</button>
-        <button id="reset-confirm-btn" class="flex-1 rounded bg-red-500 hover:bg-red-400 transition-colors py-2 text-sm font-medium text-white">삭제</button>
+        <button id="reset-cancel" class="flex-1 rounded border border-line hover:border-mjcblue transition-colors py-2 text-sm text-maintext">취소</button>
+        <button id="reset-confirm-btn" class="flex-1 rounded bg-red-600 hover:bg-red-500 transition-colors py-2 text-sm font-medium text-white">삭제</button>
       </div>
     </div>`;
   document.body.appendChild(el);

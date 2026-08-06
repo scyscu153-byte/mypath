@@ -285,7 +285,7 @@ function injectHeaderControls() {
     const profileBtn = document.createElement('button');
     profileBtn.id = 'nav-profile-btn';
     profileBtn.textContent = '내 프로필';
-    profileBtn.className = 'text-xs text-slate-400 hover:text-brand-400 transition-colors mr-3';
+    profileBtn.className = 'text-xs text-secondary hover:text-mjcblue transition-colors mr-3';
     profileBtn.addEventListener('click', () => {
       // 분석 중에는 막는다 — 나갔다가 결과가 도착하면 화면이 갑자기 튄다.
       if (isRunning()) return;
@@ -298,7 +298,7 @@ function injectHeaderControls() {
     const keyBtn = document.createElement('button');
     keyBtn.id = 'nav-key-btn';
     keyBtn.textContent = keyLabel();
-    keyBtn.className = 'text-xs text-slate-400 hover:text-brand-400 transition-colors mr-3';
+    keyBtn.className = 'text-xs text-secondary hover:text-mjcblue transition-colors mr-3';
     keyBtn.addEventListener('click', openKeyPanel);
     badge.insertAdjacentElement('beforebegin', keyBtn);
   }
@@ -335,39 +335,39 @@ function openKeyPanel() {
   el.id = 'key-panel';
   el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4';
   el.innerHTML = `
-    <div class="w-full max-w-lg rounded-lg border border-ink-600 bg-ink-900 p-6" role="dialog" aria-modal="true">
-      <h3 class="text-lg font-bold mb-1">내 팩트챗 키로 쓰기</h3>
-      <p class="text-sm text-slate-400 mb-5">
-        지금은 <strong class="text-slate-300">${hasUserKey() ? '내 키' : '데모 키'}</strong>로 동작하고 있어요.
+    <div class="w-full max-w-lg rounded-lg border border-line bg-white p-6" role="dialog" aria-modal="true">
+      <h3 class="text-lg font-bold text-navy mb-1">내 팩트챗 키로 쓰기</h3>
+      <p class="text-sm text-secondary mb-5">
+        지금은 <strong class="text-maintext">${hasUserKey() ? '내 키' : '데모 키'}</strong>로 동작하고 있어요.
       </p>
 
-      <label class="block text-xs text-slate-400 mb-1">팩트챗 API 키</label>
+      <label class="block text-xs text-secondary mb-1">팩트챗 API 키</label>
       <input id="key-input" type="password" autocomplete="off" spellcheck="false"
              placeholder="키를 붙여넣으세요"
-             class="w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm mb-2" />
-      <p id="key-msg" class="text-xs text-red-400 mb-3 min-h-[1rem]"></p>
+             class="w-full rounded bg-white border border-line px-3 py-2 text-sm mb-2" />
+      <p id="key-msg" class="text-xs text-red-600 mb-3 min-h-[1rem]"></p>
 
-      <div class="rounded border border-ink-600 bg-ink-800/60 p-3 text-xs text-slate-400 leading-relaxed mb-5">
-        <p class="text-slate-300 font-medium mb-1">키는 어디서 받나요?</p>
+      <div class="rounded border border-line bg-skysurface p-3 text-xs text-secondary leading-relaxed mb-5">
+        <p class="text-maintext font-medium mb-1">키는 어디서 받나요?</p>
         <p class="mb-2">
           <a href="https://mjc.factchat.bot" target="_blank" rel="noopener"
-             class="text-brand-400 hover:underline">mjc.factchat.bot ↗</a>
-          접속 → 좌측 하단 <strong class="text-slate-300">API Gateway</strong> 메뉴에서 발급
+             class="text-mjcblue hover:underline">mjc.factchat.bot ↗</a>
+          접속 → 좌측 하단 <strong class="text-maintext">API Gateway</strong> 메뉴에서 발급
         </p>
-        <p class="mb-2">재학생은 <strong class="text-slate-300">월 10,000 크레딧</strong>이 배정됩니다.
-          이 도구는 1회 분석에 약 <strong class="text-slate-300">68 크레딧</strong>을 씁니다 (약 140회).</p>
-        <p class="text-slate-500">
+        <p class="mb-2">재학생은 <strong class="text-maintext">월 10,000 크레딧</strong>이 배정됩니다.
+          이 도구는 1회 분석에 약 <strong class="text-maintext">68 크레딧</strong>을 씁니다 (약 140회).</p>
+        <p class="text-secondary">
           입력한 키는 이 브라우저에만 저장되고, 게이트웨이로 <strong>직접</strong> 전송됩니다.
           저희 서버를 거치지 않습니다.
         </p>
       </div>
 
       <div class="flex gap-2">
-        <button id="key-save" class="flex-1 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2 text-sm font-medium text-white">저장하고 내 키로 쓰기</button>
+        <button id="key-save" class="flex-1 rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2 text-sm font-medium text-white">저장하고 내 키로 쓰기</button>
         ${hasUserKey()
-          ? `<button id="key-clear" class="rounded border border-ink-600 hover:border-red-400 transition-colors px-3 py-2 text-sm text-slate-300">키 삭제</button>`
+          ? `<button id="key-clear" class="rounded border border-line hover:border-red-500 transition-colors px-3 py-2 text-sm text-maintext">키 삭제</button>`
           : ''}
-        <button id="key-close" class="rounded border border-ink-600 hover:border-brand-400 transition-colors px-4 py-2 text-sm text-slate-300">닫기</button>
+        <button id="key-close" class="rounded border border-line hover:border-mjcblue transition-colors px-4 py-2 text-sm text-maintext">닫기</button>
       </div>
     </div>`;
 
