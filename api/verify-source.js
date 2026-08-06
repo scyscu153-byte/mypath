@@ -125,9 +125,10 @@ async function verifyOne(url, title) {
     if (titleMatches(title, text, html)) {
       return out('verified', { httpStatus, finalUrl, bytesRead });
     }
+    const words = titleWords(title);
     return out('unverified', {
       httpStatus, finalUrl, bytesRead,
-      pageTitle: (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').trim().slice(0, 80),
+      probe: words.map((w) => `${w}:${text.includes(w) ? 'O' : 'X'}`).join(' '),
       error: '페이지에서 프로그램 제목을 확인하지 못함',
     });
   } catch (e) {
@@ -189,14 +190,17 @@ function stripTags(html) {
  * 제목 전체가 그대로 있는 경우는 드물다(줄바꿈·대괄호·공백 차이).
  * 그래서 ★핵심 낱말★ 기준으로 본다 — 절반 이상 나오면 같은 페이지로 인정한다.
  */
-function titleMatches(title, text, html) {
-  const words = String(title)
+function titleWords(title) {
+  return String(title)
     .replace(/[[\]()·,~\-—/]/g, ' ')
     .split(/\s+/)
     .map((w) => w.trim())
     .filter((w) => w.length >= 2)
     .slice(0, 8);
+}
 
+function titleMatches(title, text, html) {
+  const words = titleWords(title);
   if (!words.length) return false;
 
   const hay = `${text} ${(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '')}`;
