@@ -10,7 +10,7 @@ import { STAGE, STAGE_LABEL, PERSONAS, DISCLAIMER } from './types.js';
 // 어떤 관점을 어떤 회사의 모델이 평가했는지 카드에 적는다.
 // "AI 4개를 쓴다"는 주장은 모델 이름이 화면에 있어야 확인 가능한 주장이 된다.
 import { PERSONA_MODEL, clearCache, listStoredData, clearAllStoredData } from './gateway.js';
-import { exportProfile, exportFilename, importProfile, isSaved } from './profile.js';
+import { exportProfile, exportFilename, importProfile, isSaved, isCompletedProgram } from './profile.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
 export function esc(str) {
@@ -568,8 +568,12 @@ function pruneStalePosters(mount, ms = 12_000) {
 }
 
 function programCard(match, index = 0) {
-  // 담아둔 것인지 — 다시 그릴 때도 상태가 유지돼야 한다
+  // 담아둔 것인지 · 이미 참여한 것인지 — ★프로필에서 읽는다.★
+  // match 객체의 isCompleted 플래그만 보면, 프로필 화면의 담아둔 목록에서
+  // 참여 체크한 것이 결과 화면으로 돌아왔을 때 ★풀린 것처럼 보인다.★
+  // 기록은 멀쩡한데 화면만 거짓말을 하는 상태가 된다.
   const saved = isSaved(match.programTitle);
+  const isDone = match.isCompleted || isCompletedProgram(match.programTitle);
 
   // 의견이 얼마나 갈렸는지는 항상 보여준다.
   // 0.5 이상일 때만 배지를 띄우면, 대부분의 카드에서 "왜 모델을 4개 쓰는가"에 대한
@@ -632,16 +636,16 @@ function programCard(match, index = 0) {
       </div>
 
       <div class="mt-4 flex items-center justify-between gap-3">
-        <label class="complete-label flex items-center gap-2 text-sm ${match.isCompleted ? 'text-mjcblue' : 'text-maintext'}">
-          <input type="checkbox" class="complete-checkbox rounded bg-white border-line" ${match.isCompleted ? 'checked disabled' : ''} />
-          <span class="complete-label-text">${match.isCompleted ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
+        <label class="complete-label flex items-center gap-2 text-sm ${isDone ? 'text-mjcblue' : 'text-maintext'}">
+          <input type="checkbox" class="complete-checkbox rounded bg-white border-line" ${isDone ? 'checked disabled' : ''} />
+          <span class="complete-label-text">${isDone ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
         </label>
 
         <!-- ★"관심 있다"와 "참여했다"는 다른 상태다.★
              전에는 「참여했어요」 하나뿐이라, 아직 신청도 안 한 프로그램을
              담아둘 곳이 없었다. 잊어버리거나, 참여하지도 않고 체크를 누르게 된다.
              노란 계열로 눈에 띄게 — 옅은 테두리 링크였을 때는 있는 기능인지도 몰랐다. -->
-        ${match.isCompleted ? '' : `
+        ${isDone ? '' : `
         <button type="button"
           class="btn-save shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors
                  ${saved ? 'border-amber-500 bg-amber-500 text-white shadow-sm' : 'border-amber-300 bg-warn/15 text-amber-800 hover:bg-warn/30 hover:border-amber-400'}"

@@ -85,7 +85,14 @@ export function exportProfile() {
 
 /** 내보내기 파일 이름 — 학과·날짜가 들어가야 나중에 알아본다 */
 export function exportFilename(profile) {
-  const d = new Date().toISOString().slice(0, 10);
+  // ★toISOString() 은 UTC 다.★ 한국 새벽에 내보내면 파일명에 어제 날짜가 찍힌다.
+  //   사용자가 "오늘 받은 파일"을 찾을 때 헷갈린다. 현지 날짜로 만든다.
+  const now = new Date();
+  const d = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
   const dept = String(profile?.department || '프로필').replace(/[\\/:*?"<>|\s]/g, '');
   return `CareerBridge_${dept}_${d}.json`;
 }
@@ -164,6 +171,18 @@ function cleanProgramRef(x) {
 /** 담아둔 목록에 있는가 */
 export function isSaved(programTitle, profile = loadProfile()) {
   return (profile?.savedPrograms || []).some((p) => p.programTitle === programTitle);
+}
+
+/**
+ * 이미 참여한 프로그램인가.
+ *
+ * ★화면의 표시는 프로필에서 읽어야 한다.★
+ * 전에는 match 객체의 `isCompleted` 플래그만 봤는데, 그건 실행 중에만 사는 값이다.
+ * 프로필 화면의 담아둔 목록에서 참여 체크를 한 뒤 결과 화면으로 돌아오면
+ * ★체크가 풀린 것처럼 보였다.★ 기록은 멀쩡한데 화면만 거짓말을 하는 상태였다.
+ */
+export function isCompletedProgram(programTitle, profile = loadProfile()) {
+  return (profile?.completedActivities || []).some((a) => a.programTitle === programTitle);
 }
 
 /**

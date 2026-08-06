@@ -2219,7 +2219,10 @@ export const CURRICULUM_RE =
 
 /** 정규 학사과정·제도·조직인가 (비교과 프로그램이 아닌가) */
 export function isCurriculum(p) {
-  return CURRICULUM_RE.test(String(p?.programTitle || ''));
+  // ★공백을 지우고 본다.★ 「융복합전공」은 잡는데 「융복합 전공」은 놓치면
+  //   같은 것을 띄어쓰기만 다르게 쓴 항목이 새어 나간다.
+  //   교내 프로그램 판별에서도 같은 이유로 공백을 지우고 비교한다(isStudentProgram).
+  return CURRICULUM_RE.test(String(p?.programTitle || '').replace(/\s+/g, ''));
 }
 
 export function findFallback(gapNames = [], limit = 8) {

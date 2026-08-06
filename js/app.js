@@ -351,6 +351,10 @@ function goProfile() {
       //   키를 지웠는데도 헤더에 "내 계정 사용 중"이 그대로 남는다.
       //   라벨을 실제로 다시 읽는 refreshKeyLabel() 을 불러야 한다.
       refreshKeyLabel();
+      // ★프로필 칩도 지워야 한다.★ 데이터를 다 지웠는데 헤더에는
+      //   "AI게임소프트웨어학과 · 1학년"이 그대로 남고, 눌러도 아무 일이 없었다.
+      //   공용 PC에서 앞사람 학과가 헤더에 남아 있는 것은 그 자체로 문제다.
+      refreshProfileChip();
       goOnboarding();
     },
   });
