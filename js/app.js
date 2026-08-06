@@ -253,7 +253,7 @@ function injectHeaderControls() {
 }
 
 function keyLabel() {
-  return hasUserKey() ? '내 키 사용 중' : '데모 모드 · 내 키 쓰기';
+  return hasUserKey() ? '내 계정 사용 중' : '내 계정으로 이용하기';
 }
 
 function refreshKeyLabel() {

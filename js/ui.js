@@ -55,7 +55,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
       <h2 class="text-xl font-bold">먼저, 나에 대해 알려주세요</h2>
       ${demoProfile ? `<button type="button" id="btn-fill-demo-profile" class="shrink-0 text-xs text-brand-400 hover:underline">데모 데이터로 채우기</button>` : ''}
     </div>
-    <p class="text-sm text-slate-400 mb-6">한 번만 입력하면 됩니다. 이후엔 활동을 이행할 때마다 자동으로 쌓여요.</p>
+    <p class="text-sm text-slate-400 mb-6">한 번만 입력하면 됩니다. 이후엔 활동에 참여할 때마다 자동으로 쌓여요.</p>
 
     <form id="form-onboarding" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
@@ -193,7 +193,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
       </label>
 
       <label class="block">
-        <span class="text-sm text-slate-300">실제 채용공고 링크 <span class="text-slate-500">(선택 — 넣으면 그 공고를 직접 근거로 분석해요)</span></span>
+        <span class="text-sm text-slate-300">채용공고 링크 <span class="text-slate-500">(선택 — 넣으면 그 공고를 직접 근거로 분석해요)</span></span>
         <input name="jobPostingUrl" type="url" placeholder="예: https://careers.example.com/jobs/1234"
           class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
       </label>
@@ -211,7 +211,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
       </label>
 
       <fieldset class="pt-2">
-        <legend class="text-sm text-slate-300 mb-2">참여 방식 선호 <span class="text-slate-500">(선택, 추천에 살짝 반영돼요)</span></legend>
+        <legend class="text-sm text-slate-300 mb-2">활동 스타일 <span class="text-slate-500">(선택, 추천에 살짝 반영돼요)</span></legend>
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1.5">
             <input type="radio" name="activityPreference" value="team" class="bg-ink-800 border-ink-600" /> 팀 활동 선호
@@ -313,7 +313,7 @@ export function renderProgress(mount) {
         // 실제 채용공고 URL을 눈으로 확인할 수 있게 링크로 건다.
         detail.insertAdjacentHTML(
           'beforeend',
-          `<p><strong class="text-slate-300">요구 역량:</strong></p>
+          `<p><strong class="text-slate-300">이 목표에 필요한 역량</strong></p>
            <ul class="mt-1 space-y-0.5">
              ${event.data
                .map(
@@ -328,7 +328,7 @@ export function renderProgress(mount) {
       if (event.stage === STAGE.GAP_ANALYSIS && Array.isArray(event.data)) {
         detail.insertAdjacentHTML(
           'beforeend',
-          `<p><strong class="text-slate-300">부족한 부분:</strong> ${event.data.map((g) => esc(g.name)).join(', ')}</p>`
+          `<p><strong class="text-slate-300">내가 채워야 할 부분:</strong> ${event.data.map((g) => esc(g.name)).join(', ')}</p>`
         );
       }
     } else if (event.status === 'error') {
@@ -373,13 +373,14 @@ function personaGrid(personaScores) {
 const AVAILABILITY_META = {
   open:     { emoji: '🟢', label: '현재 모집 중' },
   upcoming: { emoji: '🔵', label: '모집 예정' },
-  ongoing:  { emoji: '⚪', label: '상시 참여 가능 여부 확인 필요' },
+  ongoing:  { emoji: '⚪', label: '상시 모집 중' },
   unknown:  { emoji: '🟡', label: '모집 일정 확인 필요' },
 };
 
 function availabilityBadge(match) {
   const meta = AVAILABILITY_META[match.availability] || AVAILABILITY_META.unknown;
-  const tone = match.availability === 'open' || match.availability === 'upcoming'
+  // ongoing("상시 모집 중")은 unknown과 달리 확신도가 높은 정보라 같은 긍정 톤을 준다.
+  const tone = match.availability === 'open' || match.availability === 'upcoming' || match.availability === 'ongoing'
     ? 'bg-emerald-500/15 text-emerald-300'
     : 'bg-amber-500/15 text-amber-300';
   return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded ${tone} text-[11px] font-medium">
@@ -390,7 +391,7 @@ function availabilityBadge(match) {
 /** P0-1 출처 검증 배지. null(검증 안 됨)이면 아무것도 그리지 않는다 — 검증은 있으면 좋은 정보이지 전제조건이 아니다. */
 function sourceStatusBadge(match) {
   if (match.sourceStatus === 'verified') {
-    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">✅ 공식 원문 확인됨</span>`;
+    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">✅ 링크 확인됨</span>`;
   }
   if (match.sourceStatus === 'unverified') {
     return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[11px]">⚠️ 원문 확인 필요</span>`;
@@ -430,8 +431,8 @@ function programCard(match) {
   //   "실시간 검색"이라고 말한 화면에 수집 데이터가 표시 없이 섞이면 그게 약점이 된다.
   //   구분해서 적으면 오히려 근거가 된다.
   const originBadge = match.origin === 'collected'
-    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[11px]">수집 데이터</span>`
-    : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">실시간 검색</span>`;
+    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[11px]">사전 조사 자료</span>`
+    : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">방금 검색한 결과</span>`;
 
   const period = periodText(match);
   const searchQuery = encodeURIComponent(`site:mjc.ac.kr "${match.programTitle}"`);
@@ -460,14 +461,14 @@ function programCard(match) {
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
         <a href="${esc(match.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">공식 공지 열기 ↗</a>
         <button type="button" class="btn-copy-link text-slate-500 hover:text-slate-300" data-url="${esc(match.sourceUrl)}">링크 복사</button>
-        <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-slate-500 hover:text-slate-300">학교 사이트에서 다시 검색 ↗</a>
+        <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-slate-500 hover:text-slate-300">다른 검색으로 찾아보기 ↗</a>
       </div>
 
       ${personaGrid(match.personaScores)}
 
       <label class="complete-label mt-4 flex items-center gap-2 text-sm ${match.isCompleted ? 'text-brand-400' : 'text-slate-300'}">
         <input type="checkbox" class="complete-checkbox rounded bg-ink-800 border-ink-600" ${match.isCompleted ? 'checked disabled' : ''} />
-        <span class="complete-label-text">${match.isCompleted ? '이행 완료 · 프로필에 반영됨' : '이 활동을 이행했어요'}</span>
+        <span class="complete-label-text">${match.isCompleted ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
       </label>
     </div>
   `;
@@ -524,7 +525,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
         .map(
           ([gap, list]) => `
         <section>
-          <h3 class="text-sm font-semibold text-brand-400 mb-3">갭: ${esc(gap)}</h3>
+          <h3 class="text-sm font-semibold text-brand-400 mb-3">"${esc(gap)}" 관련 프로그램</h3>
           <div class="space-y-3">${list.map(programCard).join('')}</div>
         </section>`
         )
@@ -566,7 +567,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
       const label = card.querySelector('.complete-label');
       label.classList.remove('text-slate-300');
       label.classList.add('text-brand-400');
-      card.querySelector('.complete-label-text').textContent = '이행 완료 · 프로필에 반영됨';
+      card.querySelector('.complete-label-text').textContent = '참여 완료 · 프로필에 반영됨';
     });
   });
 
@@ -603,7 +604,7 @@ function renderProfileView(mount, profile, handlers) {
 
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-6">
-      <h2 class="text-xl font-bold">마이 프로필</h2>
+      <h2 class="text-xl font-bold">내 프로필</h2>
       <button id="btn-profile-edit" class="text-xs text-brand-400 hover:underline">프로필 수정</button>
     </div>
 
@@ -624,7 +625,7 @@ function renderProfileView(mount, profile, handlers) {
       </div>
 
       <div>
-        <span class="text-sm text-slate-500">이행한 활동 (${profile.completedActivities.length})</span>
+        <span class="text-sm text-slate-500">완료한 활동 (${profile.completedActivities.length})</span>
         ${
           profile.completedActivities.length
             ? `<ul class="mt-1 space-y-1 text-sm text-slate-300">
@@ -632,7 +633,7 @@ function renderProfileView(mount, profile, handlers) {
                   .map((a) => `<li>· ${esc(a.programTitle)} <span class="text-slate-500">— ${esc(a.gainedSkill)} 역량 획득</span></li>`)
                   .join('')}
                </ul>`
-            : '<p class="mt-1 text-sm text-slate-500">아직 없어요. 추천받은 프로그램을 이행하면 여기 쌓여요.</p>'
+            : '<p class="mt-1 text-sm text-slate-500">아직 없어요. 추천받은 프로그램에 참여하면 여기 쌓여요.</p>'
         }
       </div>
     </div>
@@ -696,18 +697,18 @@ function renderProfileEdit(mount, profile, handlers) {
       ${
         earned.length
           ? `<div class="rounded border border-ink-600 bg-ink-800/40 p-3">
-              <p class="text-xs text-slate-400 mb-1.5">프로그램 이수로 얻은 기술 <span class="text-slate-600">(여기서 수정할 수 없음)</span></p>
+              <p class="text-xs text-slate-400 mb-1.5">활동으로 얻은 기술 <span class="text-slate-600">(여기서 수정할 수 없음)</span></p>
               <div>${chipList(earned)}</div>
               <p class="text-xs text-slate-500 mt-2 leading-relaxed">
-                이 기술은 프로그램 이행 이력과 연결되어 있습니다.
-                내 프로필 화면에서 해당 이행 기록을 취소하면 함께 사라집니다.
+                이 기술은 완료한 활동과 연결되어 있습니다.
+                내 프로필 화면에서 해당 활동 기록을 취소하면 함께 사라집니다.
               </p>
             </div>`
           : ''
       }
 
       <fieldset class="pt-2">
-        <legend class="text-sm text-slate-300 mb-2">참여 방식 선호 <span class="text-slate-500">(선택)</span></legend>
+        <legend class="text-sm text-slate-300 mb-2">활동 스타일 <span class="text-slate-500">(선택)</span></legend>
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1.5">
             <input type="radio" name="activityPreference" value="team" class="bg-ink-800 border-ink-600" ${pref === 'team' ? 'checked' : ''} /> 팀 활동 선호
@@ -759,7 +760,7 @@ function confirmReset(mount, handlers) {
   el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4';
   el.innerHTML = `
     <div class="w-full max-w-sm rounded-lg border border-ink-600 bg-ink-900 p-6" role="dialog" aria-modal="true">
-      <p class="text-slate-100 font-medium mb-1">정말 프로필과 이행 이력을 모두 삭제할까요?</p>
+      <p class="text-slate-100 font-medium mb-1">정말 프로필과 활동 기록을 모두 삭제할까요?</p>
       <p class="text-sm text-slate-500 mb-5">이 작업은 되돌릴 수 없습니다.</p>
       <div class="flex gap-2">
         <button id="reset-cancel" class="flex-1 rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-sm text-slate-300">취소</button>
