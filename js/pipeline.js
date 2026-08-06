@@ -473,9 +473,28 @@ ${required.map((r) => `- ${r.name}: ${r.reason}`).join('\n')}
  * @param {import('./types.js').GapSkill[]} gaps
  * @returns {Promise<{matches:Array, removedSources:string[]}>}
  */
-export async function searchPrograms(gaps) {
+/** 관심 분야로 찾은 항목의 gapSkill 앞에 붙인다 — 화면에서 갭과 구분되도록 */
+export const INTEREST_PREFIX = '관심 분야: ';
+
+/**
+ * @param {import('./types.js').GapSkill[]} gaps
+ * @param {string} [interestAreas]  전공과 무관하게 참여하고 싶은 분야 (예: "어학, 자격증")
+ */
+export async function searchPrograms(gaps, interestAreas) {
   const gapList = gaps.map((g) => `- ${g.name} (${g.reason})`).join('\n');
   const today = todayISO();
+
+  // ★ 갭과 별개로 "그냥 하고 싶은 것"을 받는다.
+  //   목표 역량만으로 추천하면 "전공과 무관하지만 어학 프로그램은 듣고 싶다" 같은
+  //   실제 수요가 화면에 나올 자리가 없다.
+  //   갭을 대체하는 게 아니라 ★따로 한 묶음 더★ 찾아준다.
+  const interest = String(interestAreas || '').trim();
+  const interestBlock = interest
+    ? `\n\n[역량과 별개로 참여하고 싶은 분야]\n- ${interest}\n`
+      + `   이 분야 프로그램도 1~2개 찾아서 함께 넣어라.\n`
+      + `   ★그 항목의 gapSkill 은 "${INTEREST_PREFIX}${interest}" 로 적어라.★\n`
+      + `   부족한 역량과는 관계없어도 된다. 학생이 직접 원한 것이다.`
+    : '';
 
   const { text, citations } = await callModel({
     task: TASK.SEARCH_PROGRAMS,
@@ -507,7 +526,7 @@ ${JSON_ONLY}`,
 오늘 날짜는 ${today}이다.
 
 [부족한 역량]
-${gapList}
+${gapList}${interestBlock}
 
 - 역량 하나당 1~2개씩, 전체 4~8개 ─ 이건 상한이지 채워야 할 목표가 아니다.
   ★해당 역량과 진짜로 관련 있는 걸 못 찾았으면, 억지로 끼워맞추지 말고 그 역량은 그냥 빼라.★
@@ -613,9 +632,20 @@ ${gapList}
   const seenTitles = new Set(searchAlive.map((m) => m.programTitle));
   const supplemented = [];
 
-  for (const g of gaps) {
+  // 갭 + 관심 분야를 같은 방식으로 보충한다
+  const wanted = [
+    ...gaps.map((g) => g.name),
+    ...(interest ? [`${INTEREST_PREFIX}${interest}`] : []),
+  ];
+
+  for (const name of wanted) {
+    const g = { name };
     if (covered.has(g.name)) continue;
-    for (const p of findFallback([g.name], 2)) {
+    // 관심 분야는 접두사를 떼고 검색해야 한다
+    const query = g.name.startsWith(INTEREST_PREFIX)
+      ? g.name.slice(INTEREST_PREFIX.length)
+      : g.name;
+    for (const p of findFallback([query], 2)) {
       if (seenTitles.has(p.programTitle)) continue;
       seenTitles.add(p.programTitle);
       supplemented.push({
@@ -943,7 +973,7 @@ function disagreementOf(scores) {
  * @param {string} [opts.jobPostingUrl]  사용자가 직접 붙여넣은 실제 채용공고 URL (선택)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]  진행 콜백
  */
-export async function run({ profile, target, jobPostingUrl, onStage = () => {} }) {
+export async function run({ profile, target, jobPostingUrl, interestAreas, onStage = () => {} }) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   /**
@@ -986,7 +1016,7 @@ export async function run({ profile, target, jobPostingUrl, onStage = () => {} }
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   } = await step(STAGE.PROGRAM_SEARCH,
-    () => searchPrograms(gapSkills),
+    () => searchPrograms(gapSkills, interestAreas),
     '교내 프로그램을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PROGRAM_SEARCH, 'done', {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,

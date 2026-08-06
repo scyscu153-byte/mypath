@@ -57,7 +57,7 @@ export async function suggestTargets(department, { grade } = {}) {
  * @param {string} [opts.jobPostingUrl]  실제 채용공고 URL (선택 — mock에서는 표시만 하고 검색엔 안 씀)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]
  */
-export async function run({ profile, target, jobPostingUrl, onStage = () => {} }) {
+export async function run({ profile, target, jobPostingUrl, interestAreas, onStage = () => {} }) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   emit(STAGE.REQUIRED_SKILLS, 'start');
