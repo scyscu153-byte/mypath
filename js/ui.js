@@ -19,7 +19,10 @@ export function esc(str) {
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+    .replaceAll('"', '&quot;')
+    // 홑따옴표도 바꾼다. 지금은 홑따옴표 속성이 한 곳도 없지만,
+    // 나중에 누가 title='${...}' 하나만 써도 그 순간 뚫린다.
+    .replaceAll("'", '&#39;');
 }
 
 /**
@@ -129,7 +132,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
             장애학생 지원 대상입니다
             <span class="block text-xs text-secondary">
               체크하지 않으면 장애학생 대상 프로그램은 추천에서 제외합니다.
-              이 정보는 이 브라우저에만 저장되며 어디로도 전송되지 않습니다.
+              <strong>이 선택 자체는</strong> 이 브라우저에만 저장되며 서버로 전송되지 않습니다.
             </span>
           </span>
         </label>
@@ -1182,7 +1185,10 @@ function renderProfileEdit(mount, profile, handlers) {
         </label>
         <label class="block">
           <span class="text-sm text-maintext">나이 <span class="text-secondary">(선택)</span></span>
-          <input name="age" type="number" min="15" max="99" value="${profile.age ?? ''}"
+          <!-- ★esc() 를 빼면 안 된다.★ 앱이 저장하는 age 는 Number 로 정규화되지만,
+               ★불러오기★로 들어온 프로필은 그렇지 않다 — 남이 준 파일의 age 가
+               그대로 속성값이 되어 속성을 탈출할 수 있다. -->
+          <input name="age" type="number" min="15" max="99" value="${esc(profile.age ?? '')}"
             class="mt-1 w-full rounded bg-white border border-line px-3 py-2 text-sm" />
         </label>
       </div>

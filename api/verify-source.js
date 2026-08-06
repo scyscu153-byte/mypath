@@ -44,6 +44,42 @@ const NOT_FOUND_MARKERS = [
   '잘못된 접근입니다',
 ];
 
+// ─────────────────────────────────────────────
+//  사용량 제한
+//
+//  ★이 주소는 공개이고 인증이 없다.★
+//  한 번 부르면 학교 서버에 최대 20개 요청을 동시 5로 보내고,
+//  페이지당 1.5MB 까지 읽는다 — 요청당 최대 30MB 다.
+//  게다가 User-Agent 에 우리 배포 주소가 박혀 있어서
+//  ★학교 로그에는 우리 이름으로 남는다.★
+//  제한이 없으면 누구나 이 주소를 학교를 향한 무료 요청 생성기로 쓸 수 있다.
+//
+//  ⚠️ 카운터는 서버 인스턴스 메모리에 있다. 인스턴스가 재활용되면 초기화된다.
+//     완전한 방어가 아니라 속도 방지턱이다 (api/gateway.js 와 같은 한계).
+// ─────────────────────────────────────────────
+const RATE_LIMIT = 60;                      // IP당
+const RATE_WINDOW_MS = 10 * 60 * 1000;      // 10분
+const hits = new Map();
+
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff) return xff.split(',')[0].trim();
+  return req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+}
+
+function withinLimit(ip) {
+  const now = Date.now();
+  const list = (hits.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (list.length >= RATE_LIMIT) { hits.set(ip, list); return false; }
+  list.push(now);
+  hits.set(ip, list);
+  // 메모리가 무한정 늘지 않게 정리한다
+  if (hits.size > 500) {
+    for (const [k, v] of hits) if (!v.some((t) => now - t < RATE_WINDOW_MS)) hits.delete(k);
+  }
+  return true;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST만 허용됩니다' });
@@ -53,6 +89,12 @@ export default async function handler(req, res) {
   const items = Array.isArray(body?.items) ? body.items.slice(0, MAX_ITEMS) : null;
   if (!items) {
     return res.status(400).json({ error: 'items 배열이 필요합니다' });
+  }
+
+  // 검증을 통과한 요청만 센다 (잘못된 요청은 학교 서버를 때리지 않는다)
+  if (!withinLimit(clientIp(req))) {
+    res.setHeader('Retry-After', String(Math.ceil(RATE_WINDOW_MS / 1000)));
+    return res.status(429).json({ error: '출처 확인 요청이 너무 잦습니다' });
   }
 
   const results = await mapLimit(items, CONCURRENCY, (it) =>

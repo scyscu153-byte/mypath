@@ -124,12 +124,27 @@ export function importProfile(text) {
     department: String(p.department || ''),
     certificates: asList(p.certificates),
     skills: asList(p.skills),
-    // savedPrograms 는 나중에 추가된 항목이다 — 그 전에 내보낸 파일에는 없다.
-    // asList 가 없으면 undefined 가 되어 프로필 화면이 백지가 된다.
-    savedPrograms: asList(p.savedPrograms),
-    completedActivities: asList(p.completedActivities),
+    // ★불러오기는 ★남이 준 파일★이 들어오는 유일한 입구다.★
+    //   여기서 정규화하지 않으면 화면 곳곳에서 하나씩 막아야 하고, 한 곳만 빠뜨려도 뚫린다.
+    //   실제로 age 가 속성을 탈출하고 sourceUrl 에 javascript: 를 넣을 수 있었다.
+    //   입구에서 한 번 걸러 두면 그 뒤로는 앱이 만든 값과 같아진다.
+    age: Number.isFinite(Number(p.age)) ? Number(p.age) : null,
+    grade: Number(p.grade) || base.grade,
+    savedPrograms: asList(p.savedPrograms).map(cleanProgramRef),
+    completedActivities: asList(p.completedActivities).map(cleanProgramRef),
     traits: { ...base.traits, ...(p.traits || {}) },
   });
+}
+
+/** http/https 링크만 남긴다 — 불러온 파일의 항목을 화면에 그리기 전에 씻는다 */
+function cleanProgramRef(x) {
+  const safeUrl = (u) => {
+    try {
+      const url = new URL(String(u ?? ''));
+      return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+    } catch { return ''; }
+  };
+  return { ...x, sourceUrl: safeUrl(x?.sourceUrl) };
 }
 
 // ─────────────────────────────────────────────

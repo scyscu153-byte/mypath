@@ -151,20 +151,14 @@ export default async function handler(req, res) {
     });
   }
 
-  // ── 1-2. 사용량 제한 ────────────────────────
-  const rate = checkRate(clientIp(req));
-  if (!rate.ok) {
-    res.setHeader('Retry-After', String(rate.retryAfter));
-    return res.status(429).json({
-      error: rate.scope === 'global'
-        ? '데모 모드 사용량이 한도에 도달했습니다'
-        : '요청이 너무 잦습니다',
-      hint: '본인의 팩트챗 키를 입력하면 제한 없이 사용할 수 있습니다. '
-          + '입력한 키는 저희 서버를 거치지 않고 브라우저에서 직접 사용됩니다.',
-    });
-  }
-
   // ── 2. 요청 검증 ────────────────────────────
+  //
+  // ★사용량 계산보다 ★먼저★ 검증한다.★
+  //   전에는 순서가 반대였다. 그러면 ★거부될 쓰레기 요청도 한도를 갉아먹는다.★
+  //   허용되지 않은 모델이나 과도한 본문처럼 크레딧이 1도 안 나가는 요청을
+  //   180번 보내기만 하면 전체 한도가 한 시간 동안 소진되고,
+  //   그 상태에서 심사위원이 누르면 화면에 API 키 입력 패널이 뜬다.
+  //   ★비용이 나가는 요청만 세는 것이 맞다.★
   const body = typeof req.body === 'string' ? safeParse(req.body) : req.body;
   if (!body) {
     return res.status(400).json({ error: '요청 본문을 해석할 수 없습니다' });
@@ -203,6 +197,21 @@ export default async function handler(req, res) {
   // 응답 길이 상한을 강제한다 (클라이언트가 더 크게 보내도 잘라낸다)
   if (!payload.max_tokens || payload.max_tokens > MAX_TOKENS_CAP) {
     payload.max_tokens = MAX_TOKENS_CAP;
+  }
+
+  // ── 2-2. 사용량 제한 ────────────────────────
+  //   여기까지 왔다는 것은 ★실제로 크레딧이 나갈 요청★이라는 뜻이다.
+  //   검증에서 거부되는 요청은 세지 않는다 (위 주석 참조).
+  const rate = checkRate(clientIp(req));
+  if (!rate.ok) {
+    res.setHeader('Retry-After', String(rate.retryAfter));
+    return res.status(429).json({
+      error: rate.scope === 'global'
+        ? '데모 모드 사용량이 한도에 도달했습니다'
+        : '요청이 너무 잦습니다',
+      hint: '본인의 팩트챗 키를 입력하면 제한 없이 사용할 수 있습니다. '
+          + '입력한 키는 저희 서버를 거치지 않고 브라우저에서 직접 사용됩니다.',
+    });
   }
 
   // ── 3. 게이트웨이로 전달 ────────────────────

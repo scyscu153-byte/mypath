@@ -483,7 +483,12 @@ export function filterCitations(citations = []) {
 /** 도메인이 명지전문대인지 판정 */
 export function isAllowedSource(url) {
   try {
-    return new URL(url).hostname.endsWith(ALLOWED_DOMAIN);
+    // ★점을 붙여서 검사한다.★ endsWith 만 쓰면 evilmjc.ac.kr 이 통과한다.
+    //   서버(api/verify-source.js)는 이미 이렇게 하고 있었는데 여기만 느슨했다.
+    //   실제로는 서버 검증이 broken 을 줘서 막히지만, 검증이 타임아웃되면
+    //   sourceStatus 가 null 이 되어 그대로 표시된다. 좁은 창이지만 막아둔다.
+    const h = new URL(url).hostname.toLowerCase();
+    return h === ALLOWED_DOMAIN || h.endsWith(`.${ALLOWED_DOMAIN}`);
   } catch {
     return false;
   }

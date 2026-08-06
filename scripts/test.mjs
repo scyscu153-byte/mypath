@@ -386,6 +386,25 @@ t('왕복 후 담아둔 목록이 복원된다',
 t('savedPrograms 가 없는 옛 파일을 불러와도 배열이 된다',
   Array.isArray(P.importProfile('{"department":"사회복지과","grade":2}').savedPrograms));
 
+// ★불러오기는 남이 준 파일이 들어오는 유일한 입구다.★
+//   여기서 씻지 않으면 화면 곳곳에서 하나씩 막아야 하고, 한 곳만 빠뜨려도 뚫린다.
+const evil = JSON.stringify({
+  department: '테스트과', grade: 1,
+  age: '" autofocus onfocus=alert(1) x="',
+  savedPrograms: [{ programTitle: '가짜', gapSkill: 'x', sourceUrl: 'javascript:alert(1)' }],
+  completedActivities: [{ programTitle: '가짜2', gainedSkill: 'y', sourceUrl: 'javascript:alert(2)' }],
+});
+const cleaned = P.importProfile(evil);
+t('불러오기: age 가 속성을 탈출하지 못한다', cleaned.age === null);
+t('불러오기: savedPrograms 의 javascript: 가 제거된다', cleaned.savedPrograms[0].sourceUrl === '');
+t('불러오기: completedActivities 의 javascript: 도 제거된다', cleaned.completedActivities[0].sourceUrl === '');
+t('불러오기: 정상 http 링크는 살아남는다',
+  P.importProfile(JSON.stringify({ department:'a', grade:1,
+    savedPrograms:[{ programTitle:'진짜', sourceUrl:'https://cls.mjc.ac.kr/a' }] }))
+    .savedPrograms[0].sourceUrl === 'https://cls.mjc.ac.kr/a');
+t('불러오기: 정상 나이는 숫자로 남는다',
+  P.importProfile('{"department":"a","grade":1,"age":24}').age === 24);
+
 // ─────────────────────────────────────────────
 //  결과
 // ─────────────────────────────────────────────
