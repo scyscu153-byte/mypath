@@ -106,6 +106,31 @@ function parseDate(v) {
  * @returns {{availability:'open'|'upcoming'|'ongoing'|'unknown'|'closed',
  *            dateConfidence:'verified'|'estimated'|'unknown', reason:string}}
  */
+/**
+ * 모집 상태를 판정해 프로그램에 붙여준다.
+ *
+ * ★모듈 수준에 둔다.★ 전에는 searchPrograms 안의 지역 함수(`judge`)였는데,
+ * 교외 활동 검색을 새로 쓰면서 그걸 부르려다 `judge is not defined` 로 죽었다.
+ * 교내와 교외가 ★같은 잣대★로 판정되어야 화면에 나란히 놓인 배지를 비교할 수 있다.
+ * 그러려면 정의가 한 곳에만 있어야 한다.
+ *
+ * @param {any} p
+ * @param {Date} now
+ */
+export function attachAvailability(p, now = new Date()) {
+  const j = judgeAvailability(p, now);
+  return {
+    ...p,
+    applicationStartAt: p.applicationStartAt ?? null,
+    applicationEndAt: p.applicationEndAt ?? null,
+    eventStartAt: p.eventStartAt ?? null,
+    eventEndAt: p.eventEndAt ?? null,
+    availability: j.availability,
+    dateConfidence: j.dateConfidence,
+    availabilityReason: j.reason,
+  };
+}
+
 export function judgeAvailability(p, today = new Date()) {
   const t = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const text = `${p.programTitle || ''} ${p.summary || ''}`;
@@ -761,19 +786,7 @@ ${gapList}${interestBlock}
   //         일정 탈락 5건 → 화면에 1건만 남았다.
   // 위쪽 today 는 프롬프트에 넣는 문자열(todayISO)이라 이름을 달리한다
   const now = new Date();
-  const judge = (p) => {
-    const j = judgeAvailability(p, now);
-    return {
-      ...p,
-      applicationStartAt: p.applicationStartAt ?? null,
-      applicationEndAt: p.applicationEndAt ?? null,
-      eventStartAt: p.eventStartAt ?? null,
-      eventEndAt: p.eventEndAt ?? null,
-      availability: j.availability,
-      dateConfidence: j.dateConfidence,
-      availabilityReason: j.reason,
-    };
-  };
+  const judge = (p) => attachAvailability(p, now);
 
   const searchJudged = matches.map((m) => judge({ ...m, origin: 'search' }));
   const searchAlive = searchJudged.filter((p) => canRecommend(p, now));
@@ -971,9 +984,11 @@ ${gapList}${interest ? `\n[관심 분야] ${interest}` : ''}
     return true;
   });
 
-  // 마감이 지난 것은 교내와 같은 규칙으로 떨어뜨린다
+  // 마감이 지난 것은 교내와 ★같은 규칙★으로 떨어뜨린다 (attachAvailability 주석 참조)
   const now = new Date();
-  const matches = deduped.map(judge).filter((p) => canRecommend(p, now));
+  const matches = deduped
+    .map((p) => attachAvailability(p, now))
+    .filter((p) => canRecommend(p, now));
 
   return { matches, removed };
 }
