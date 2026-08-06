@@ -269,12 +269,12 @@
 
 <h3>구현 결과 요약</h3>
 <div class="metric">
-  <div><div class="v">68.5</div><div class="k">1회 실행 크레딧<br>(전부 Opus면 370.6)</div></div>
+  <div><div class="v">68.5</div><div class="k">분석 4단계 크레딧<br>(전부 Opus면 370.6)</div></div>
   <div><div class="v">82%</div><div class="k">모델 라우팅 절감률</div></div>
   <div><div class="v">143</div><div class="k">직접 수집·검증한<br>교내 프로그램</div></div>
   <div><div class="v">4</div><div class="k">서로 다른 회사의<br>평가 모델</div></div>
 </div>
-<p class="note">모든 수치는 2026-08-06 실제 실행 로그와 크레딧 잔량 API로 측정한 값이다. 추정치가 아니다.</p>
+<p class="note">모든 수치는 2026-08-06 ~ 08-07 실제 실행 로그와 크레딧 잔량 API로 측정한 값이다. 추정치가 아니다.</p>
 
 <h3>목차</h3>
 <ol class="toc">
@@ -604,7 +604,9 @@ URL이 입력되면 파이프라인은 일반 검색 대신 <b>그 공고를 최
 <h3>6.3 요구 역량 검색 (1단계)</h3>
 <p>검색 내장 모델(<code>sonar-pro</code>)로 공개된 채용공고를 탐색해 요구 역량을 추출한다.
 결과는 단정적 채용 요건이 아니라 ‘분석에 활용한 요구 역량’으로 제시하며, 각 항목에 근거 URL을 붙인다.
-<b>출처를 확보하지 못한 항목은 결과에서 제외</b>한다.</p>
+<b>출처를 확보하지 못한 항목도 이름만 있으면 남기고, 그 항목에만 ‘근거 보기’ 링크를 띄우지 않는다.</b>
+처음에는 출처 없는 항목을 코드에서 제외했으나, 시스템 프롬프트가 이미 모델에게 같은 지시를 하고 있어
+<b>이중 필터</b>가 되면서 파이프라인이 1단계에서 멈추는 일이 있었다. 그래서 규칙을 바꿨다(8.5.2 참조).</p>
 <p class="note">실제 출력 예: “C# 언어 및 Unity 엔진 활용 능력” → <code>jumpit.saramin.co.kr</code>,
 “Git 기반 협업 도구 사용 경험” → <code>wanted.co.kr</code></p>
 
@@ -694,8 +696,12 @@ URL이 입력되면 파이프라인은 일반 검색 대신 <b>그 공고를 최
 <h3>6.8 관심 분야 — 목표와 무관하게 참여하고 싶은 것</h3>
 <p>이 도구의 기본 동작은 <b>“목표가 요구하는 것”에서 역산</b>하는 것이다. 그런데 학생의 실제 관심은 그것만이 아니다.
 팀 내부 테스트에서 나온 지적은 이랬다 — <b>“전공과 관련 없어도 어학 프로그램만 따로 참여하고 싶을 수 있다.”</b></p>
-<p>목표 설정 화면에 <b>선택 입력란</b>을 하나 두었다. 여기에 적은 분야는 Gap과 <b>별개의 묶음</b>으로 한 번 더 검색해서,
-결과 화면 맨 아래에 따로 모아 보여준다. Gap 기반 추천을 밀어내지 않도록 <b>정렬에서 항상 뒤로</b> 보낸다.</p>
+<p>목표 설정 화면에 <b>선택 입력란</b>을 하나 두었다. 여기에 적은 분야는 3단계 교내 프로그램 검색의
+<b>같은 질의 안에 별도 프롬프트 블록으로 덧붙는다</b>(<code>js/pipeline.js</code>의 <code>interestBlock</code>).
+즉 <b>검색을 한 번 더 하지 않는다</b> — 가장 비싼 <code>sonar-pro</code>를 추가로 부르지 않으므로
+관심 분야를 지원해도 <b>호출 수와 크레딧이 늘지 않는다.</b>
+결과는 Gap과 <b>별개의 묶음</b>으로 표시하여 화면 맨 아래에 따로 모으고,
+Gap 기반 추천을 밀어내지 않도록 <b>정렬에서 항상 뒤로</b> 보낸다.</p>
 <div class="callout">
 <span class="lbl">왜 Gap에 섞지 않았는가</span>
 관심 분야를 Gap 목록에 넣으면 “목표가 요구하는 것”과 “내가 하고 싶은 것”이 구분되지 않는다.
@@ -822,7 +828,7 @@ flowchart LR
 flowchart LR
  N1["Gap 3개 × 검색<br/>= 3회"] --> N3["<b>약 200 크레딧</b><br/>묶지 않은 경우"]
  N2["프로그램 5개 × 4모델<br/>= 20회"] --> N3
- N3 ==>|"호출 묶기<br/>+ 모델 라우팅"| Y3["<b>68.5 크레딧</b><br/>7회 호출"]
+ N3 ==>|"호출 묶기<br/>+ 모델 라우팅"| Y3["<b>68.5 크레딧</b><br/>분석 4단계 7회 호출"]
  Y1["Gap 전체를 한 질의로<br/>= 1회"] --> Y3
  Y2["리스트 전체를 각 모델이<br/>1회씩 = 4회"] --> Y3
 
@@ -863,7 +869,7 @@ flowchart LR
 <tr><td>이행 이력에 <code>[object Object]</code> 표시</td><td>기술이 문자열/객체 두 형태로 저장되는데 한쪽만 처리</td><td>양쪽 형태를 모두 정규화</td></tr>
 <tr><td>데모 모드에서만 4개 중 2개 모델이 400 오류</td><td>프록시의 허용 모델 목록이 교체된 모델을 반영하지 못함. 본인 키 경로는 이 검사를 지나지 않아 로컬 테스트로는 드러나지 않음</td><td>두 파일을 대조하는 검사 스크립트 추가 (<code>npm run check</code>)</td></tr>
 <tr><td>출처 검증이 모든 항목을 <code>unverified</code>로 판정</td><td>본문 읽기 상한 300KB. 학교 게시판 한 페이지가 349KB이고 게시글 제목이 그 뒤쪽에 있었다</td><td>상한 1.5MB로 상향. 진단값(<code>bytesRead</code>)을 응답에 남겨 원인을 좁혔다</td></tr>
-<tr><td><b>배포된 앱이 빈 화면으로 올라감</b></td><td>변수 이름 중복 선언(<code>today</code>). ES 모듈은 파싱 단계에서 실패하므로 파일 하나가 깨지면 이를 <code>import</code>하는 진입점이 통째로 죽는다. <b>서버는 200을 응답하므로 배포는 “성공”으로 보인다</b></td><td>배포 전 문법 검사 게이트 신설 (7.9절)</td></tr>
+<tr><td><b>배포된 앱이 빈 화면으로 올라감</b></td><td>변수 이름 중복 선언(<code>today</code>). ES 모듈은 파싱 단계에서 실패하므로 파일 하나가 깨지면 이를 <code>import</code>하는 진입점이 통째로 죽는다. <b>서버는 200을 응답하므로 배포는 “성공”으로 보인다</b></td><td>배포 전 문법 검사 게이트 신설 (7.8절)</td></tr>
 </table>
 
 <div class="callout warn">
@@ -882,9 +888,9 @@ UTF-8 파일로 저장해 <code>--data-binary @file</code>로 보내자 정상 �
 <tr><th style="width:30%">검사</th><th>내용</th></tr>
 <tr><td><code>scripts/check-syntax.mjs</code></td><td><code>js/</code>·<code>api/</code>의 모든 모듈을 실제로 <code>import</code>한다. <code>SyntaxError</code>만 실패로 처리하고, DOM이 없어 발생하는 런타임 오류는 경고로 남긴다</td></tr>
 <tr><td><code>scripts/check-models.mjs</code></td><td>클라이언트 라우팅 모델과 프록시 허용 목록을 대조한다</td></tr>
-<tr><td><code>scripts/test.mjs</code></td><td>판정 로직 단위 테스트 <b>70종</b> (8.5 참조)</td></tr>
+<tr><td><code>scripts/test.mjs</code></td><td>판정 로직 단위 테스트 <b>80종</b> (8.5 참조)</td></tr>
 </table>
-<pre>npm test          단위 테스트 70종
+<pre>npm test          단위 테스트 80종
 npm run check     문법 + 모델 목록 정합 + 단위 테스트
 npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포되지 않는다</pre>
 <p>세 검사 모두 <b>의도적으로 오류를 주입해 배포가 차단되는 것까지 확인</b>했다.</p>
@@ -904,7 +910,8 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <!-- ══════════════════ 8 ══════════════════ -->
 <section>
 <h2>8. 테스트 및 검증</h2>
-<p class="note">아래 모든 수치는 2026-08-06 실제 실행 로그, 크레딧 잔량 API, 배포 환경 HTTP 응답으로 측정한 값이다.</p>
+<p class="note">아래 모든 수치는 <b>2026-08-06 ~ 08-07</b> 실제 실행 로그, 크레딧 잔량 API, 배포 환경 HTTP 응답으로 측정한 값이다.
+수집·크레딧 측정은 08-06, 배포 환경 검증과 부록 C의 실행 예시는 08-07 배포본 기준이다.</p>
 
 <h3>8.1 기능 테스트</h3>
 <table>
@@ -923,11 +930,14 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <tr><th style="width:34%">지표</th><th style="width:34%">측정 방법</th><th class="num">측정값</th></tr>
 <tr><td>응답 시간 <b>(캐시 없음)</b></td><td>분석 시작 ~ 결과 화면 표시</td><td class="num"><b>45.3초</b></td></tr>
 <tr><td>응답 시간 (캐시 적중)</td><td>같은 목표를 12시간 내 재실행</td><td class="num">12 ~ 20초</td></tr>
-<tr><td>API 호출 수</td><td>1회 실행 기준</td><td class="num">7회</td></tr>
-<tr><td>실행당 비용</td><td>크레딧 잔량 API 차분</td><td class="num"><b>68.5 크레딧</b></td></tr>
-<tr><td>전부 <code>claude-opus-5</code>였다면</td><td>동일 호출 수 × 단가</td><td class="num">370.6 크레딧</td></tr>
-<tr class="hi"><td>모델 라우팅 절감률</td><td>(370.6 − 68.5) / 370.6</td><td class="num">82%</td></tr>
-<tr><td>월 10,000 크레딧 기준 실행 가능 횟수</td><td>10,000 ÷ 실행당 비용</td><td class="num"><b>146회</b> (Opus만 쓰면 27회)</td></tr>
+<tr><td>API 호출 수</td><td>1회 실행 기준<br><span class="note">0단계 목표 제안 1 + 요구역량 1 + 갭 1 + 검색 1 + 페르소나 4</span></td><td class="num"><b>8회</b></td></tr>
+<tr><td>비용 — 분석 4단계</td><td>크레딧 잔량 API 차분 <span class="note">(7호출)</span><br>
+  <span class="note">28 + 1.99 + 28 + 1.99 + 8.0 + 0.33 + 0.15</span></td><td class="num"><b>68.5 크레딧</b></td></tr>
+<tr><td>비용 — 0단계 목표 제안</td><td><code>gpt-5.4-nano</code> 1호출 <span class="note">(학과로 목표 후보 제안)</span></td><td class="num">1.0 크레딧</td></tr>
+<tr class="hi"><td><b>실행당 비용 (8호출 전체)</b></td><td>68.5 + 1.0</td><td class="num"><b>69.5 크레딧</b></td></tr>
+<tr><td>전부 <code>claude-opus-5</code>였다면</td><td><b>분석 7호출</b> × 52.94 <span class="note">(0단계 제외 · 아래 절감률과 같은 기준)</span></td><td class="num">370.6 크레딧</td></tr>
+<tr class="hi"><td>모델 라우팅 절감률</td><td>(370.6 − 68.5) / 370.6 <span class="note">— 분석 7호출 기준</span></td><td class="num">82%</td></tr>
+<tr><td>월 10,000 크레딧 기준 실행 가능 횟수</td><td>10,000 ÷ 68.5 <span class="note">(분석 7호출 기준. 0단계까지 포함한 69.5로 나누면 143회)</span></td><td class="num"><b>146회</b> (Opus만 쓰면 27회)</td></tr>
 <tr><td>Gap 커버리지</td><td>프로그램이 매칭된 Gap / 전체 Gap</td><td class="num">5 / 5</td></tr>
 <tr><td>공식 출처 비율</td><td>추천 URL 중 <code>mjc.ac.kr</code> 비율</td><td class="num">100%</td></tr>
 </table>
@@ -936,8 +946,9 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <p class="note"><b>시간 수치를 한 번 정정했다.</b> 초기 측정에서 “12~20초”가 나왔는데,
 <code>sonar-pro</code>(실측 20초)를 <b>순차로 2회</b> 호출하는 구조상 산술이 맞지 않았다.
 확인해 보니 <b>12시간 응답 캐시가 적중한 상태에서 잰 값</b>이었다.
-캐시를 비우고 처음 보는 목표(「데이터 분석가」)로 다시 재니 <b>45.3초</b>였고, 같은 실행의 비용은 69.4크레딧으로
-표의 68.5와 일치했다. <b>비용은 맞았지만 시간은 틀렸다</b> — 같은 실행 로그에서 나온 숫자라도
+캐시를 비우고 처음 보는 목표(「데이터 분석가」)로 다시 재니 <b>45.3초</b>였고, 같은 실행의 비용은 <b>69.4크레딧</b>이었다.
+이 값은 표의 68.5와 다른데, <b>68.5는 분석 4단계(7호출)만의 값이고 69.4는 0단계 목표 제안까지 포함한 8호출 전체의 값</b>이기 때문이다.
+즉 위 표의 8호출 합계 69.5크레딧과 맞는 숫자다. <b>비용은 맞았지만 시간은 틀렸다</b> — 같은 실행 로그에서 나온 숫자라도
 캐시 상태에 따라 한쪽만 왜곡될 수 있다는 뜻이다. 발표 시연에서는 캐시가 없는 상태를 기준으로 안내한다.</p>
 
 <h3>8.3 출처 URL 검증</h3>
@@ -978,22 +989,27 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 있어 하나라도 깨지면 배포가 멈춘다. 외부 라이브러리는 쓰지 않았다 — 이 저장소는 의존성이 0개다.</p>
 <table>
 <tr><th style="width:58%">영역</th><th class="c">개수</th><th class="c">결과</th></tr>
-<tr><td>모집 상태 판정 (<code>judgeAvailability</code>)</td><td class="c">12</td><td class="c">PASS</td></tr>
+<tr><td>모집 상태 판정 (<code>judgeAvailability</code>)</td><td class="c">16</td><td class="c">PASS</td></tr>
 <tr><td>추천 가능 여부 (<code>canRecommend</code>)</td><td class="c">3</td><td class="c">PASS</td></tr>
 <tr><td>링크 스킴 검증 (<code>safeHttpUrl</code>)</td><td class="c">14</td><td class="c">PASS</td></tr>
+<tr><td>JSON 파싱 (<code>parseJson</code>)</td><td class="c">10</td><td class="c">PASS</td></tr>
 <tr><td>링크 종류 판별 (<code>linkKind</code>)</td><td class="c">5</td><td class="c">PASS</td></tr>
-<tr><td>교내 프로그램 판별 (<code>isStudentProgram</code>)</td><td class="c">10</td><td class="c">PASS</td></tr>
-<tr><td>프로필 내보내기·불러오기</td><td class="c">21</td><td class="c">PASS</td></tr>
+<tr><td>교내 프로그램 판별 — 진짜는 살린다 (<code>isStudentProgram</code>)</td><td class="c">4</td><td class="c">PASS</td></tr>
+<tr><td>교내 프로그램 판별 — 프로그램이 아닌 것은 막는다</td><td class="c">6</td><td class="c">PASS</td></tr>
+<tr><td>프로필 내보내기·불러오기</td><td class="c">17</td><td class="c">PASS</td></tr>
 <tr><td>성장 루프 (<code>markCompleted</code>)</td><td class="c">5</td><td class="c">PASS</td></tr>
-<tr class="hi"><td><b>합계</b></td><td class="c"><b>70</b></td><td class="c"><b>전부 통과</b></td></tr>
+<tr class="hi"><td><b>합계</b></td><td class="c"><b>80</b></td><td class="c"><b>전부 통과</b></td></tr>
 </table>
+<p class="note"><b>이 표의 개수는 손으로 세지 않는다.</b> <code>scripts/test.mjs</code>가 그룹별 개수를 직접 세어
+마지막에 출력하며, 여기에는 그 출력값을 그대로 옮겼다. 앞선 판에서 표를 손으로 세다가 틀린 것이 계기다.</p>
 <p class="note"><b>테스트를 쓰다가 배운 것.</b> 처음 작성했을 때 4건이 실패했다.
 원인을 찾아보니 코드가 아니라 <b>테스트가 틀렸다</b> — 판정이 읽는 필드는 <code>deadline</code>이 아니라
 <code>applicationEndAt</code>이었다(<code>deadline</code>은 항상 <code>null</code>로만 채워지는 잔재 필드였다).
-이 프로젝트에서 “측정 도구부터 의심하라”는 교훈을 만난 것은 이번이 두 번째다(7.6 참조).</p>
+이 프로젝트에서 “측정 도구부터 의심하라”는 교훈을 만난 것은 이번이 두 번째다(7.7 참조).</p>
 
 <h4>8.5.1 모집 상태 판정 — 개별 케이스</h4>
-<p>날짜 판정은 잘못되면 멀쩡한 프로그램이 사라진다. 판정이 어떤 입력에서 어떻게 동작하는지 전부 적는다.</p>
+<p>날짜 판정은 잘못되면 멀쩡한 프로그램이 사라진다. 판정이 어떤 입력에서 어떻게 동작하는지 입력 유형별로 적는다.
+<b>위 표의 16종을 유형으로 묶은 것이며, 제목 표현 3행은 단위 테스트에 없어 판정 함수를 직접 호출해 확인했다(2026-08-07).</b></p>
 <table>
 <tr><th style="width:46%">입력</th><th class="c" style="width:18%">기대</th><th class="c">결과</th></tr>
 <tr><td>신청 마감일이 지남</td><td class="c">closed</td><td class="c">PASS</td></tr>
@@ -1045,6 +1061,42 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <p class="note"><b>여기서 얻은 원칙.</b> 필터를 넣을 때는 <b>“무엇을 막는가”와 함께 “무엇을 잃는가”를 같은 단위로 재야 한다.</b>
 차단율만 보면 세 장치 모두 성공으로 보인다. 8.6.5의 순도 실험에서 “차단 100%”를 포기한 것도 같은 이유다 —
 차단율은 올랐지만 진짜 프로그램 106건 중 50건이 함께 사라졌다.</p>
+
+<h4>8.5.3 모집 상태 판정이 실제로 몇 건에 도달하는가 — 45.5%는 도달하지 못한다</h4>
+<p>단위 테스트는 판정이 <b>주어진 입력에서</b> 맞게 동작하는지를 본다.
+그러나 실제로 중요한 것은 <b>그 입력이 얼마나 있느냐</b>다.
+그래서 수집한 143건 전부에 판정을 돌려 분포를 셌다(기준일 2026-08-06,
+<code>judgeAvailability</code>를 직접 호출).</p>
+<table>
+<tr><th style="width:34%">판정</th><th class="num" style="width:16%">건수</th><th class="num" style="width:14%">비율</th><th>의미</th></tr>
+<tr><td><code>unknown</code></td><td class="num">110</td><td class="num">76.9%</td><td>확인하지 못했다 → 추천하되 원문 확인 안내</td></tr>
+<tr><td><code>closed</code></td><td class="num">31</td><td class="num">21.7%</td><td>끝난 것이 명백하다 → 제외</td></tr>
+<tr><td><code>ongoing</code></td><td class="num">2</td><td class="num">1.4%</td><td>상시 운영</td></tr>
+<tr class="hi"><td><b>추천함</b></td><td class="num"><b>112</b></td><td class="num"><b>78.3%</b></td><td><code>closed</code>가 아닌 전부</td></tr>
+<tr><td>제외함</td><td class="num">31</td><td class="num">21.7%</td><td>지난 학년도 게시물 29 + 종료 표현(“수상작”·“후기”) 2</td></tr>
+</table>
+
+<div class="callout warn">
+<span class="lbl">먼저 밝히는 한계 — 143건 중 65건(45.5%)은 게시일 자체가 없다</span>
+<code>postedAt</code>이 <code>null</code>인 항목이 <b>65건(45.5%)</b>이다.
+학년도 기준 판정은 게시일에서 출발하므로, <b>이 65건에는 날짜 기반 판정이 애초에 도달하지 못한다.</b>
+전부 <code>unknown</code>으로 남아 추천 목록에 오른다.
+즉 위 표의 <code>unknown</code> 110건 중 <b>절반 이상은 “판정했더니 모르겠다”가 아니라 “판정할 재료가 없었다”</b>이다.
+<p style="margin-top:2mm">이것을 숨기지 않는 이유는 6.5.2에 적은 원칙과 같다 —
+<b>모르는 것을 아는 척하지 않는다.</b> 그래서 이 항목들은 화면에서 <b>🟡 “모집 일정 확인 필요”</b> 배지로 표시되고,
+“현재 모집 여부는 공식 공지에서 확인해주세요.”라는 안내가 함께 붙는다(<code>js/ui.js</code>).
+날짜 기반 판정이 실제로 작동하는 것은 <b>게시일이 있는 78건</b>뿐이며, 그중 31건이 <code>closed</code>, 45건이 <code>unknown</code>, 2건이 <code>ongoing</code>이었다.</p>
+</div>
+
+<p>제외된 31건이 실제로 지난 자료가 맞는지도 눈으로 확인했다. 가장 오래된 다섯 건이다.</p>
+<pre>2023-01-27  지역상생 봉사·문화행사 참여신청 (학내 구성원 대상)
+2024-05-03  지·산·학 ICC연계 공유·협업 「창업캠프」
+2024-05-28  서울 AI 이노베이션 챌린지 참가자 모집
+2024-07-26  디지털 뉴딜 취창업지원 드론항공촬영 및 편집 고급과정 (무료)
+2024-08-07  현장실습학기제 홍보콘텐츠 공모전</pre>
+<p class="note">31건 전부가 지난 학년도 게시물이거나 제목에 종료 표현이 있는 항목이다.
+<b>멀쩡한 프로그램이 날짜 때문에 죽지는 않았다</b>는 것이 이 목록으로 확인된다
+— 8.5.2에서 세 번 반복한 실수를 여기서는 되풀이하지 않았는지 확인하는 절차다.</p>
 
 <h3>8.6 출처 순도 — 무엇이 섞여 들어오는가</h3>
 <p>“교내 프로그램을 추천한다”고 말하려면 <b>실제로 교내 프로그램만 나와야 한다.</b>
@@ -1099,6 +1151,9 @@ citations 총량이 줄어 검색 반환 건수도 줄지만, 부족분은 수�
 <h4>8.6.4 판별 정확도를 실제 게시판으로 측정했다</h4>
 <p>규칙이 실제로 얼마나 걸러내는지 확인하기 위해, <code>mjc.ac.kr</code> 게시판 62곳에서
 <b>실제 게시글 제목 1,055건</b>을 수집해 사람 기준으로 분류하고 판별기를 돌렸다.</p>
+<p class="note"><b>분류 결과부터 밝힌다.</b> 1,055건 중 <b>937건을 ‘비프로그램’</b>으로, <b>106건을 ‘실제 프로그램’</b>으로 분류했다.
+두 수를 더하면 1,043건이고, <b>나머지 12건은 어느 쪽으로도 분류하지 않아 아래 비율 계산에서 제외했다.</b>
+아래 표의 각 비율이 어느 모수를 쓴 값인지는 ‘비고’ 열에 적었다 — 세 행의 모수가 서로 다르므로 합산되지 않는다.</p>
 <table>
 <tr><th style="width:34%">지표</th><th class="num" style="width:20%">개선 전</th><th class="num" style="width:20%">개선 후</th><th>비고</th></tr>
 <tr><td>비프로그램 차단율</td><td class="num">3.1%</td><td class="num"><b>92.4%</b></td><td>937건 기준</td></tr>
@@ -1155,7 +1210,8 @@ citations 총량이 줄어 검색 반환 건수도 줄지만, 부족분은 수�
 <tr><td><b>SSRF 시도</b> (<code>verify-source</code>)</td><td><code>127.0.0.1</code>·<code>169.254.169.254</code>(클라우드 메타데이터)·
   <code>file://</code>·<code>http://mjc.ac.kr@127.0.0.1</code>·<code>evil-mjc.ac.kr</code> <b>8종 전부 fetch 이전에 차단</b></td></tr>
 <tr><td>입력 크기 상한</td><td>20KB 초과 요청 → HTTP 413 <span class="note">(<code>max_tokens</code>는 출력만 자르므로 입력을 따로 막는다)</span></td></tr>
-<tr><td>저장소 키 노출</td><td>전체 커밋 히스토리 오브젝트 180개를 고엔트로피 문자열로 스캔한 결과 <b>0건</b>.
+<tr><td>저장소 키 노출</td><td>전체 커밋 히스토리 오브젝트 <b>308개</b>(커밋 61개, 2026-08-07 <code>git rev-list --all --objects</code> 실측)를
+  고엔트로피 문자열로 스캔한 결과 <b>0건</b>.
   배포본 JS 10개를 내려받아 검사한 결과도 <b>0건</b></td></tr>
 </table>
 <p class="note"><b>IP당 한도를 25에서 120으로 올린 이유.</b> 파이프라인 1회는 8호출이다.
@@ -1223,7 +1279,8 @@ flowchart LR
 <figcaption>그림 6. 재학생에게 이미 배정된 크레딧을 쓰므로, 사용자가 늘어도 운영 비용이 늘지 않는다.</figcaption>
 </figure>
 <p>명지전문대학 재학생은 누구나 팩트챗에서 자기 API 키를 발급받을 수 있고,
-<b>1인당 월 10,000 크레딧</b>이 이미 배정되어 있다. 1회 분석이 68.5크레딧이므로 <b>학생 1명당 월 146회</b>를 쓸 수 있다.</p>
+<b>1인당 월 10,000 크레딧</b>이 이미 배정되어 있다. 분석 4단계(7호출)가 68.5크레딧이므로 <b>학생 1명당 월 146회</b>를 쓸 수 있다
+(0단계 목표 제안 1.0크레딧까지 포함한 69.5크레딧 기준이면 143회다 — 8.2절).</p>
 <div class="callout key">
 <span class="lbl">학교 입장에서 추가 예산이 필요하지 않다</span>
 사용자가 늘어도 운영자도, 학교도 새로 비용을 부담하지 않는다.
@@ -1353,7 +1410,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
 그 이유가 각각 다르다 — 시장 관점은 “문제 정의 경험”을 높게 보고, 학업·비용 관점은 “분석 도구를 안 다룬다”를 낮게 본다.
 한 모델만 썼다면 이 중 하나만 남았을 것이다. <b>4개가 같은 소리를 하면 4개를 쓸 이유가 없다.</b><br>
 또한 이 실행은 <code>origin: "collected"</code>다 — 실시간 검색이 이 갭을 채우지 못해
-사전 수집 143건에서 보충한 경우이며, 화면에도 “사전 조사 자료” 배지로 구분해 표시된다(6.4 참조).</p>
+사전 수집 143건에서 보충한 경우이며, 화면에도 “사전 조사 자료” 배지로 구분해 표시된다(6.5 참조).</p>
 
 <h3>D. 참고 링크 및 출처</h3>
 <table>
