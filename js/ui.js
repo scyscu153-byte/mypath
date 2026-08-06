@@ -613,12 +613,35 @@ function renderProfileView(mount, profile, handlers) {
   // 다른 읽기 지점은 전부 `|| []` 로 감싸져 있는데 여기만 빠져 있었다 —
   // 없으면 마이 프로필 화면 전체가 백지가 된다.
   const done = profile.completedActivities || [];
+  const skillCount = (profile.skills || []).length;
+  // design.md 6절 "Growth bridge" — 현재 상태 → 역량 → 목표를 파란 노드/선으로 잇고,
+  // 실제로 달성된 구간만 초록으로 강조한다. 모션 없는 정적 표시로 유지한다 (8절 "모션은 절제되게").
+  const growthPath = `
+    <div class="flex items-start justify-between mb-6" aria-hidden="true">
+      <div class="flex flex-col items-center gap-1.5 flex-1">
+        <span class="w-3 h-3 rounded-full bg-navy"></span>
+        <span class="text-[11px] text-secondary text-center leading-tight">${esc(profile.department)}</span>
+      </div>
+      <div class="flex-1 h-px bg-mjcblue/30 mt-[5px]"></div>
+      <div class="flex flex-col items-center gap-1.5 flex-1">
+        <span class="w-3 h-3 rounded-full bg-mjcblue"></span>
+        <span class="text-[11px] text-secondary text-center leading-tight">보유 기술 ${skillCount}개</span>
+      </div>
+      <div class="flex-1 h-px ${done.length ? 'bg-growth' : 'bg-mjcblue/30'} mt-[5px]"></div>
+      <div class="flex flex-col items-center gap-1.5 flex-1">
+        <span class="w-3 h-3 rounded-full ${done.length ? 'bg-growth' : 'bg-white border-2 border-mjcblue/30'}"></span>
+        <span class="text-[11px] ${done.length ? 'text-growth font-medium' : 'text-secondary'} text-center leading-tight">완료한 활동 ${done.length}개</span>
+      </div>
+    </div>
+  `;
 
   mount.innerHTML = `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-1">
       <h2 class="text-xl font-bold">내 프로필</h2>
       <button id="btn-profile-edit" class="text-xs text-mjcblue hover:underline">프로필 수정</button>
     </div>
+
+    ${growthPath}
 
     <div class="rounded-lg border border-line bg-white shadow-sm p-4 space-y-4">
       <div class="grid grid-cols-2 gap-3 text-sm">
