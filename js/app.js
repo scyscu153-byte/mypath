@@ -9,6 +9,7 @@ import * as pipeline from './pipeline.js';
 import * as mockPipeline from './mock.js';
 import { getUsage, setUserKey, getUserKey, hasUserKey } from './gateway.js';
 import { DEMO_PROFILE, DEMO_TARGETS } from './demo.js';
+import { markCompleted } from './profile.js';
 import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
 
 const STORAGE_KEY = 'mypath.profile';
@@ -125,15 +126,16 @@ function goReport() {
   renderReport(mountOf('report'), currentTarget, currentMatches, {
     onComplete: (match) => {
       match.isCompleted = true;
-      profile.completedActivities.push({
-        programTitle: match.programTitle,
-        gainedSkill: match.gapSkill,
-        completedAt: new Date().toISOString(),
-      });
-      if (!profile.skills.includes(match.gapSkill)) {
-        profile.skills.push(match.gapSkill);
-      }
-      saveProfile();
+      // ★ 성장 루프의 핵심 지점이다. profile.js 의 markCompleted 로 처리한다.
+      //
+      //   전에는 여기서 profile.skills.includes(match.gapSkill) 로 중복을 걸렀는데,
+      //   skills 는 { name, level } 객체 배열이라 문자열과는 절대 일치하지 않았다.
+      //   → 같은 프로그램을 두 번 누르면 계속 쌓이고, 쌓인 값은 이름이 없어
+      //     다음 갭 분석에서 "보유 기술"로 읽히지 않았다.
+      //
+      //   markCompleted 는 객체/문자열을 모두 정규화해 비교하고,
+      //   이미 있는 기술이면 수준을 올리고 없으면 '프로그램 이수'로 추가한다.
+      profile = markCompleted(match);
       // 체크박스 자체는 ui.js가 즉시 완료 상태로 갱신하므로 화면 전체를 다시 그리지 않아도 된다.
     },
     onNewTarget: goTarget,

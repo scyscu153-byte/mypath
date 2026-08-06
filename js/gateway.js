@@ -39,7 +39,7 @@ const DIRECT_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway';
 // ─────────────────────────────────────────────
 
 export const MODEL_PROFILE = Object.freeze({
-  'solar-pro3':            { credits: 0.07,  seconds: 1.6,  note: '평가 — 국내 모델(Upstage)' },
+  'solar-pro2':            { credits: 0.15,  seconds: 2.2,  note: '평가 — 국내 모델(Upstage)' },
   'gemini-3.5-flash-lite': { credits: 0.33,  seconds: 1.8,  note: '평가 — Google' },
   'gpt-5.4-nano':          { credits: 1.0,   seconds: 2.0,  note: '분류·판별 등 초경량 작업' },
   'gpt-5.4-mini':          { credits: 1.99,  seconds: 2.8,  note: '주력 — 추론·요약·평가' },
@@ -50,6 +50,9 @@ export const MODEL_PROFILE = Object.freeze({
   // gemini-3.5-flash 는 답을 쓰기 전에 속으로 1,187토큰을 생각한다.
   // 그 토큰도 과금되는데 결과물은 flash-lite 와 다르지 않았다. (2026-08-06 실측)
   'gemini-3.5-flash':      { credits: 7.90,  seconds: 7.4,  note: '미사용 — 숨은 추론 1,187토큰' },
+  // solar-pro3 는 프로그램 10개를 주면 1번 하나만 평가하고 끝냈다.
+  // 더 새로운 모델이 항상 더 나은 것은 아니다. pro2 가 이 작업에는 맞았다.
+  'solar-pro3':            { credits: 0.07,  seconds: 1.6,  note: '미사용 — 10개 중 1개만 답함' },
   // 비교 기준 — 실제로 호출하지 않는다.
   // "가장 좋은 모델만 쓰면 얼마나 드는가"를 계산하기 위한 값.
   'claude-opus-5':         { credits: 52.94, seconds: 25.9, note: '미사용 — 26배 비싸고 9배 느림' },
@@ -87,16 +90,24 @@ const ROUTE = Object.freeze({
  * 같은 모델 두 개에게 다른 역할만 시키면 관점이 갈리지 않는다.
  * 그래서 벤더를 네 곳으로 나눴다 — OpenAI / Anthropic / Google / Upstage(한국).
  *
- * 모델 선택 근거 (2026-08-06 실측):
- *   senior 는 원래 gemini-3.5-flash 였다. 그런데 이 모델은 답을 쓰기 전에
- *   속으로 1,187토큰을 생각하느라 출력이 잘려 ★평가가 통째로 실패★하고 있었다.
- *   숨은 추론이 없는 flash-lite 로 바꾸니 4배 빨라지고 24배 싸졌다.
+ * 모델 선택 근거 (2026-08-06, 프로그램 10개 리스트로 각 2회 실측):
+ *
+ *   senior 는 원래 gemini-3.5-flash 였다. 답을 쓰기 전에 속으로 1,187토큰을
+ *   생각하느라 출력이 잘려 ★평가가 통째로 실패★하고 있었다. flash-lite 로 바꾸니
+ *   4배 빨라지고 24배 싸졌다.
+ *
+ *   market 은 solar-pro3 를 썼다가 pro2 로 내렸다.
+ *   pro3 는 프로그램 10개를 주면 ★1번 하나만 평가하고 끝냈다★ (응답 전체가 86자).
+ *   ★더 새로운 모델이 항상 더 나은 것은 아니다.★ 재보고 골라야 한다.
+ *
+ *   탈락한 후보: EXAONE(형식 실패), kimi-k2.6(59초), seed-2.0-lite(14~18초),
+ *               grok-4-1-fast(11초 + 숨은 추론 840토큰)
  */
 export const PERSONA_MODEL = Object.freeze({
   practitioner: 'gpt-5.4-mini',            // OpenAI
   professor: 'claude-sonnet-5',            // Anthropic
   senior: 'gemini-3.5-flash-lite',         // Google
-  market: 'solar-pro3',                    // Upstage — 국내 채용 시장 감각
+  market: 'solar-pro2',                    // Upstage — 국내 채용 시장 감각
 });
 
 export function routeModel(task) {

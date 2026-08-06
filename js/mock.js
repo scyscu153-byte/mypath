@@ -36,12 +36,39 @@ export async function run({ profile, target, onStage = () => {} }) {
 
   emit(STAGE.PROGRAM_SEARCH, 'start');
   await delay(900);
-  emit(STAGE.PROGRAM_SEARCH, 'done');
+  // pipeline.js 는 이 단계에서 data 를 함께 보낸다. 모양을 맞춘다.
+  emit(STAGE.PROGRAM_SEARCH, 'done', {
+    matches: MOCK_MATCHES,
+    removedSources: [],
+    droppedForSource: 0,
+    supplementedCount: 1,
+    collectedAt: '2026-08-06',
+  });
 
   emit(STAGE.PERSONA_REVIEW, 'start');
   await delay(700);
-  const matches = MOCK_MATCHES.map((m) => ({ ...m, isCompleted: false }));
+  // origin / reviewedBy / failedPersonas 도 실제 파이프라인과 똑같이 채운다.
+  // 이게 없으면 mock 으로 리허설한 화면과 본 화면이 달라진다.
+  const matches = MOCK_MATCHES.map((m, i) => ({
+    ...m,
+    isCompleted: false,
+    origin: m.origin || (i === MOCK_MATCHES.length - 1 ? 'collected' : 'search'),
+    reviewedBy: Object.values(m.personaScores || {})
+      .filter((v) => Number.isFinite(v?.score)).length,
+    failedPersonas: [],
+  }));
   emit(STAGE.PERSONA_REVIEW, 'done', matches);
 
-  return { target, requiredSkills, gapSkills, matches, filtered: { removedSources: [], droppedForSource: 0 } };
+  // ★ 반환 모양을 pipeline.js 와 정확히 맞춘다.
+  //   dev-test.html 이 result.supplement / result.review 를 읽으므로
+  //   빠져 있으면 mock 모드에서만 TypeError 가 난다.
+  return {
+    target,
+    requiredSkills,
+    gapSkills,
+    matches,
+    filtered: { removedSources: [], droppedForSource: 0 },
+    supplement: { count: 1, collectedAt: '2026-08-06' },
+    review: { personaCount: 4, failed: [] },
+  };
 }

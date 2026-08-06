@@ -7,6 +7,9 @@
  */
 
 import { STAGE, STAGE_LABEL, PERSONAS, DISCLAIMER } from './types.js';
+// 어떤 관점을 어떤 회사의 모델이 평가했는지 카드에 적는다.
+// "AI 4개를 쓴다"는 주장은 모델 이름이 화면에 있어야 확인 가능한 주장이 된다.
+import { PERSONA_MODEL } from './gateway.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
 function esc(str) {
@@ -18,10 +21,23 @@ function esc(str) {
     .replaceAll('"', '&quot;');
 }
 
+/**
+ * 기술 항목은 두 가지 형태로 들어온다.
+ *   - 온보딩에서 직접 입력한 것          → 'C#'            (문자열)
+ *   - 프로그램 이수로 자동으로 쌓인 것    → {name, level}   (객체)
+ * 그냥 esc() 하면 객체는 "[object Object]" 가 된다.
+ * 성장 루프(이행 체크 → 내 프로필)를 누르면 반드시 지나가는 경로다.
+ */
 function chipList(items) {
   if (!items || items.length === 0) return '<span class="text-slate-500">없음</span>';
   return items
-    .map((i) => `<span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded bg-ink-700 text-xs text-slate-200">${esc(i)}</span>`)
+    .map((i) => {
+      const name = typeof i === 'string' ? i : String(i?.name ?? '');
+      const level = typeof i === 'string' ? '' : String(i?.level ?? '');
+      if (!name) return '';
+      const suffix = level ? `<span class="text-slate-400"> · ${esc(level)}</span>` : '';
+      return `<span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded bg-ink-700 text-xs text-slate-200">${esc(name)}${suffix}</span>`;
+    })
     .join('');
 }
 
@@ -230,7 +246,20 @@ export function renderProgress(mount) {
 
   return function onStage(event) {
     const li = mount.querySelector(`li[data-stage="${event.stage}"]`);
-    if (!li) return;
+    if (!li) {
+      // 모르는 단계 이름으로 온 이벤트를 그냥 버리면,
+      // 실패했을 때 화면이 스피너에서 영원히 멈춘 것처럼 보인다.
+      // 최소한 오류 문구는 반드시 남긴다.
+      if (event.status === 'error') {
+        mount.querySelectorAll('.stage-icon.animate-spin').forEach((el) => {
+          el.outerHTML = '<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-500"></span>';
+        });
+        detail.insertAdjacentHTML('beforeend',
+          `<p class="text-red-400">${esc(event.message || '오류가 발생했어요')}</p>
+           <p class="text-slate-500 text-xs">잠시 후 다시 시도해주세요.</p>`);
+      }
+      return;
+    }
     const icon = li.querySelector('.stage-icon');
 
     if (event.status === 'start') {
@@ -270,13 +299,21 @@ function personaGrid(personaScores) {
       ${PERSONAS.map((p) => {
         const v = personaScores[p.key];
         if (!v) return '';
+        // 점수가 없을 수 있다 (그 모델이 응답에 실패한 경우).
+        // 이때 "null/10" 이 찍히면 안 된다 — 실패는 실패라고 적는다.
+        const failed = !Number.isFinite(v.score);
+        const scoreCell = failed
+          ? `<span class="font-mono text-slate-600">– /10</span>`
+          : `<span class="font-mono text-brand-400">${v.score}/10</span>`;
+        const model = PERSONA_MODEL[p.key] || '';
         return `
-          <div class="rounded bg-ink-800 border border-ink-600 px-2.5 py-2">
+          <div class="rounded bg-ink-800 border border-ink-600 px-2.5 py-2 ${failed ? 'opacity-60' : ''}">
             <div class="flex items-center justify-between text-[11px] text-slate-400">
               <span>${esc(p.label)} <span class="text-slate-600">· ${esc(p.sub)}</span></span>
-              <span class="font-mono text-brand-400">${v.score}/10</span>
+              ${scoreCell}
             </div>
-            <p class="text-xs text-slate-300 mt-1 leading-snug">${esc(v.comment)}</p>
+            <p class="text-xs ${failed ? 'text-slate-500' : 'text-slate-300'} mt-1 leading-snug">${esc(v.comment)}</p>
+            ${model ? `<p class="text-[10px] text-slate-600 mt-1 font-mono">${esc(model)}</p>` : ''}
           </div>`;
       }).join('')}
     </div>
@@ -284,11 +321,25 @@ function personaGrid(personaScores) {
 }
 
 function programCard(match) {
-  const scores = Object.values(match.personaScores || {}).map((v) => v.score);
-  const disagreementBadge =
-    match.disagreement >= 0.5
-      ? `<span class="inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-medium">⚡ 의견이 갈렸어요</span>`
-      : '';
+  // 의견이 얼마나 갈렸는지는 항상 보여준다.
+  // 0.5 이상일 때만 배지를 띄우면, 대부분의 카드에서 "왜 모델을 4개 쓰는가"에 대한
+  // 화면상의 답이 사라진다. 갈린 정도를 수치로 늘 적고, 크게 갈렸을 때만 강조한다.
+  const scores = Object.values(match.personaScores || {})
+    .map((v) => v.score)
+    .filter(Number.isFinite);
+  const spread = scores.length >= 2 ? Math.max(...scores) - Math.min(...scores) : 0;
+  const disagreementBadge = scores.length < 2
+    ? ''
+    : match.disagreement >= 0.5
+      ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-medium">⚡ 의견이 갈렸어요 · ${spread}점 차</span>`
+      : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-ink-700 text-slate-400 text-[11px]">4개 관점 ${spread}점 차</span>`;
+
+  // ★ 이 항목이 실시간 검색에서 왔는지, 미리 수집해둔 데이터에서 왔는지 숨기지 않는다.
+  //   "실시간 검색"이라고 말한 화면에 수집 데이터가 표시 없이 섞이면 그게 약점이 된다.
+  //   구분해서 적으면 오히려 근거가 된다.
+  const originBadge = match.origin === 'collected'
+    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[11px]">수집 데이터</span>`
+    : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">실시간 검색</span>`;
 
   const deadlineText = match.deadline
     ? `${esc(match.deadline)} <span class="text-slate-500">(${DISCLAIMER.DEADLINE_UNCERTAIN})</span>`
@@ -297,11 +348,14 @@ function programCard(match) {
   return `
     <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-4" data-match-id="${esc(match.id)}">
       <div class="flex items-start justify-between gap-3">
-        <div>
+        <div class="min-w-0">
           <h4 class="font-semibold text-slate-100">${esc(match.programTitle)}</h4>
           <p class="text-sm text-slate-400 mt-0.5">${esc(match.summary)}</p>
         </div>
-        ${disagreementBadge}
+        <div class="flex flex-col items-end gap-1">
+          ${originBadge}
+          ${disagreementBadge}
+        </div>
       </div>
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-slate-500">
@@ -341,6 +395,14 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
     <p class="text-sm text-slate-400 mb-6">${DISCLAIMER.ELIGIBILITY} · ${DISCLAIMER.NO_SOURCE}</p>
 
     <div class="space-y-8">
+      ${byGap.size === 0 ? `
+        <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-6 text-center">
+          <p class="text-slate-300 font-medium">지금 확인되는 교내 프로그램을 찾지 못했습니다.</p>
+          <p class="text-sm text-slate-400 mt-2 leading-relaxed">
+            출처가 확인되지 않은 항목은 표시하지 않습니다.<br>
+            목표를 조금 넓게 적으면 (예: "게임 개발자" → "소프트웨어 개발자") 결과가 나올 수 있습니다.
+          </p>
+        </div>` : ''}
       ${[...byGap.entries()]
         .map(
           ([gap, list]) => `

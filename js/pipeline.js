@@ -62,18 +62,75 @@ function parseJson(text, fallback = []) {
   // 코드블록 제거
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
 
-  // 첫 [ 또는 { 부터 마지막 ] 또는 } 까지
+  // ① 있는 그대로 파싱해본다 (대부분 여기서 끝난다)
+  try {
+    return JSON.parse(s);
+  } catch { /* 아래로 */ }
+
+  // ② 첫 [ 또는 { 부터 마지막 ] 또는 } 까지 잘라서 파싱
   const start = Math.min(
     ...[s.indexOf('['), s.indexOf('{')].filter((i) => i >= 0),
   );
   const end = Math.max(s.lastIndexOf(']'), s.lastIndexOf('}'));
-  if (Number.isFinite(start) && end > start) s = s.slice(start, end + 1);
-
-  try {
-    return JSON.parse(s);
-  } catch {
-    return fallback;
+  if (Number.isFinite(start) && end > start) {
+    try {
+      return JSON.parse(s.slice(start, end + 1));
+    } catch { /* 아래로 */ }
   }
+
+  // ③ ★ 모델이 배열을 여러 개로 쪼개서 뱉는 경우
+  //
+  //    solar-pro3 는 10개 항목을 요청하면 이렇게 답한다:
+  //      [{"index":1,...}]
+  //      [{"index":2,...}]      ← 하나의 배열이 아니라 배열 10개
+  //
+  //    ②는 첫 [ 부터 마지막 ] 까지를 통째로 파싱하므로 반드시 실패한다.
+  //    실제로 이것 때문에 "시장 트렌드" 평가가 통째로 비어 있었다.
+  //    모델을 바꾸는 대신 파서를 고친다 — 시연 중 어떤 모델이 이래도 살아남아야 한다.
+  const chunks = extractJsonChunks(s);
+  if (chunks.length) {
+    const merged = chunks.flatMap((c) => (Array.isArray(c) ? c : [c]));
+    if (merged.length) return merged;
+  }
+
+  return fallback;
+}
+
+/**
+ * 문자열에서 균형이 맞는 JSON 덩어리를 전부 찾아 파싱한다.
+ * 괄호 depth 를 세되, 문자열 리터럴 안의 괄호와 이스케이프는 무시한다.
+ */
+function extractJsonChunks(s) {
+  const out = [];
+  let depth = 0, startIdx = -1, inStr = false, esc = false, opener = '';
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+
+    if (c === '[' || c === '{') {
+      if (depth === 0) { startIdx = i; opener = c; }
+      depth++;
+    } else if (c === ']' || c === '}') {
+      if (depth === 0) continue;
+      depth--;
+      if (depth === 0 && startIdx >= 0) {
+        const closer = opener === '[' ? ']' : '}';
+        if (c === closer) {
+          try { out.push(JSON.parse(s.slice(startIdx, i + 1))); } catch { /* 이 덩어리는 버린다 */ }
+        }
+        startIdx = -1;
+      }
+    }
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────
@@ -335,7 +392,8 @@ ${listText}
 [{"index":1,"score":8,"comment":"한 줄 평가"}]`,
           // ★ 900 이었을 때 한 모델의 출력이 문장 중간에 잘려 평가가 통째로 날아갔다.
           //   모델에 따라 답을 쓰기 전에 속으로 생각하는 토큰이 있고, 그것도 이 한도에 포함된다.
-          maxTokens: 1500,
+          //   프로그램 10개 기준 claude-sonnet-5 가 808토큰을 썼다. 항목이 늘 것을 감안해 여유를 둔다.
+          maxTokens: 2500,
         });
         return { key: p.key, verdicts: parseJson(text, []) };
       } catch (e) {
@@ -419,9 +477,27 @@ function disagreementOf(scores) {
 export async function run({ profile, target, onStage = () => {} }) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
+  /**
+   * 한 단계를 실행하되, 실패하면 ★그 단계에 error 를 찍고★ 다시 던진다.
+   *
+   * 이게 없으면 2~4단계가 실패했을 때 화면이 스피너에서 영원히 멈춘다.
+   * 진행 화면은 stage 이름으로 항목을 찾기 때문에, 단계 이름 없이 던진 에러는
+   * 어디에도 표시되지 않는다. 시연 중에 이러면 "멈췄네요"로 끝난다.
+   */
+  const step = async (stage, fn, hint) => {
+    emit(stage, 'start');
+    try {
+      return await fn();
+    } catch (e) {
+      emit(stage, 'error', null, hint || e?.message || String(e));
+      throw e;
+    }
+  };
+
   // 1단계
-  emit(STAGE.REQUIRED_SKILLS, 'start');
-  const requiredSkills = await searchRequiredSkills(target);
+  const requiredSkills = await step(STAGE.REQUIRED_SKILLS,
+    () => searchRequiredSkills(target),
+    '요구 역량을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   if (!requiredSkills.length) {
     emit(STAGE.REQUIRED_SKILLS, 'error', null,
       '요구 역량을 찾지 못했습니다. 목표를 더 구체적으로 적어보세요 (예: "게임 클라이언트 개발자")');
@@ -430,21 +506,24 @@ export async function run({ profile, target, onStage = () => {} }) {
   emit(STAGE.REQUIRED_SKILLS, 'done', requiredSkills);
 
   // 2단계
-  emit(STAGE.GAP_ANALYSIS, 'start');
-  const gapSkills = await analyzeGap(requiredSkills, profile);
+  const gapSkills = await step(STAGE.GAP_ANALYSIS,
+    () => analyzeGap(requiredSkills, profile),
+    '갭 분석 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.GAP_ANALYSIS, 'done', gapSkills);
 
   // 3단계
-  emit(STAGE.PROGRAM_SEARCH, 'start');
   const {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
-  } = await searchPrograms(gapSkills);
+  } = await step(STAGE.PROGRAM_SEARCH,
+    () => searchPrograms(gapSkills),
+    '교내 프로그램을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PROGRAM_SEARCH, 'done',
     { matches, removedSources, droppedForSource, supplementedCount, collectedAt });
 
   // 4단계
-  emit(STAGE.PERSONA_REVIEW, 'start');
-  const reviewed = await reviewByPersonas(matches, profile, target);
+  const reviewed = await step(STAGE.PERSONA_REVIEW,
+    () => reviewByPersonas(matches, profile, target),
+    '평가 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PERSONA_REVIEW, 'done', reviewed);
 
   return {
