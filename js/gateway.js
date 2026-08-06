@@ -198,6 +198,55 @@ export function clearCache() {
 }
 
 // ─────────────────────────────────────────────
+//  이 브라우저에 무엇을 저장하고 있는가
+//
+//  "서버에 계정이 없다"고 말하려면, 대신 브라우저에 무엇을 두고 있는지
+//  ★사용자가 직접 확인하고 지울 수 있어야 한다.★
+//  말로만 개인정보를 안 담는다고 하는 것과, 목록을 보여주고 지우는 버튼을 주는 것은 다르다.
+// ─────────────────────────────────────────────
+
+const STORE_PREFIX = 'mypath.';
+
+/** 사람이 읽을 이름 — 키 이름을 그대로 보여주면 무엇인지 알 수 없다 */
+const STORE_LABEL = Object.freeze({
+  'mypath.profile': '프로필 · 활동 기록',
+  'mypath.userKey': 'API 키',
+  'mypath.usage': '크레딧 사용량 기록',
+});
+
+/**
+ * 이 사이트가 저장한 항목을 훑는다.
+ * @returns {{key:string, label:string, bytes:number, sensitive:boolean}[]}
+ */
+export function listStoredData() {
+  return Object.keys(localStorage)
+    .filter((k) => k.startsWith(STORE_PREFIX))
+    .map((k) => ({
+      key: k,
+      label: STORE_LABEL[k] || (k.startsWith(CACHE_PREFIX) ? '저장된 AI 응답' : k),
+      bytes: (localStorage.getItem(k) || '').length,
+      sensitive: k === 'mypath.userKey',
+    }))
+    .sort((a, b) => b.bytes - a.bytes);
+}
+
+/**
+ * 이 사이트가 저장한 것을 전부 지운다.
+ *
+ * ★프로필 초기화와 다르다.★ 프로필 초기화는 mypath.usage(크레딧 누적)를 남긴다.
+ * 그래서 새 브라우저처럼 완전히 되돌리려면 개발자도구에서 localStorage.clear() 를 쳐야 했다.
+ * 발표 5분 전에 개발자도구를 여는 것은 좋은 설계가 아니다.
+ *
+ * 다른 사이트의 저장값은 건드리지 않는다 — mypath. 로 시작하는 것만 지운다.
+ * @returns {number} 지운 항목 수
+ */
+export function clearAllStoredData() {
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith(STORE_PREFIX));
+  keys.forEach((k) => localStorage.removeItem(k));
+  return keys.length;
+}
+
+// ─────────────────────────────────────────────
 //  4. 사용자 키
 // ─────────────────────────────────────────────
 

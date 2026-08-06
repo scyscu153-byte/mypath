@@ -9,7 +9,7 @@
 import { STAGE, STAGE_LABEL, PERSONAS, DISCLAIMER } from './types.js';
 // 어떤 관점을 어떤 회사의 모델이 평가했는지 카드에 적는다.
 // "AI 4개를 쓴다"는 주장은 모델 이름이 화면에 있어야 확인 가능한 주장이 된다.
-import { PERSONA_MODEL, clearCache } from './gateway.js';
+import { PERSONA_MODEL, clearCache, listStoredData, clearAllStoredData } from './gateway.js';
 import { exportProfile, exportFilename, importProfile } from './profile.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
@@ -756,19 +756,37 @@ function renderProfileView(mount, profile, handlers) {
           <strong class="text-secondary">최신 공지로 다시 검색하고 싶을 때</strong> 비우세요. 프로필은 지워지지 않습니다.
         </p>
 
+        <!-- ──────────────────────────────────────────────
+             지금 이 브라우저에 무엇이 저장돼 있는가.
+             "서버에 계정이 없다"고 말하려면 대신 여기 무엇을 두고 있는지
+             ★사용자가 직접 확인하고 지울 수 있어야 한다.★
+             ────────────────────────────────────────────── -->
+        <div class="pt-3 mt-1 border-t border-line">
+          <p class="text-xs text-maintext mb-2">지금 이 브라우저에 저장된 것</p>
+          <ul id="data-inventory" class="text-xs text-secondary space-y-1"></ul>
+          <p class="text-xs text-secondary mt-2 leading-relaxed">
+            전부 지우려면 아래 <strong class="text-maintext">전부 지우고 처음부터</strong>를 누르세요.
+            <strong class="text-maintext">공용 PC에서 자리를 뜨기 전</strong>에 눌러주시면 좋습니다.
+          </p>
+        </div>
+
         <p id="data-msg" class="text-xs min-h-[1rem]" role="status" aria-live="polite"></p>
       </div>
     </details>
 
+    <!-- 되돌릴 수 없는 동작은 ★하나만★ 둔다.
+         전에는 '프로필 초기화'가 4개 중 3개(프로필·캐시·키)만 지우고
+         mypath.usage 를 남겨서, 완전히 되돌리려면 개발자도구가 필요했다.
+         비슷한 버튼을 하나 더 만들면 둘 다 무섭고 무엇이 다른지 알 수 없다. -->
     <button id="btn-profile-reset"
       class="w-full mt-3 text-xs text-secondary hover:text-red-600 transition-colors py-1">
-      프로필 초기화
+      전부 지우고 처음부터
     </button>
   `;
 
   mount.querySelector('#btn-profile-new-target').addEventListener('click', onNewTarget);
   mount.querySelector('#btn-profile-edit').addEventListener('click', () => renderProfileEdit(mount, profile, handlers));
-  mount.querySelector('#btn-profile-reset').addEventListener('click', () => confirmReset(mount, handlers));
+  mount.querySelector('#btn-profile-reset').addEventListener('click', () => confirmNuke(mount, handlers));
   if (onBackToReport) mount.querySelector('#btn-profile-back').addEventListener('click', onBackToReport);
 
   wireDataControls(mount, profile, handlers);
@@ -784,6 +802,30 @@ function wireDataControls(mount, profile, handlers) {
     msg.textContent = text;
     msg.className = `text-xs min-h-[1rem] ${ok ? 'text-growth' : 'text-red-600'}`;
   };
+
+  // ── 저장 목록 ──
+  //   무엇이 저장돼 있는지 보여주지 않으면 "전부 지우기"가 무엇을 지우는지 알 수 없다.
+  const inventory = mount.querySelector('#data-inventory');
+  function drawInventory() {
+    const items = listStoredData();
+    if (!items.length) {
+      inventory.innerHTML = '<li class="text-secondary">저장된 것이 없습니다.</li>';
+      return;
+    }
+    // 같은 종류(AI 응답)는 묶어서 센다 — 캐시가 수십 개면 목록이 화면을 덮는다
+    const grouped = new Map();
+    for (const it of items) {
+      const g = grouped.get(it.label) || { count: 0, bytes: 0, sensitive: it.sensitive };
+      grouped.set(it.label, { count: g.count + 1, bytes: g.bytes + it.bytes, sensitive: g.sensitive });
+    }
+    inventory.innerHTML = [...grouped.entries()].map(([label, g]) => `
+      <li class="flex items-center justify-between gap-2">
+        <span>${esc(label)}${g.count > 1 ? ` <span class="text-secondary">× ${g.count}</span>` : ''}
+          ${g.sensitive ? '<span class="ml-1 text-red-600">● 민감</span>' : ''}</span>
+        <span class="tabular-nums text-secondary">${fmtBytes(g.bytes)}</span>
+      </li>`).join('');
+  }
+  drawInventory();
 
   // ── 내보내기 ──
   mount.querySelector('#btn-data-export').addEventListener('click', () => {
@@ -826,7 +868,70 @@ function wireDataControls(mount, profile, handlers) {
   mount.querySelector('#btn-data-cache').addEventListener('click', (e) => {
     const n = clearCache();
     say(n ? `저장된 응답 ${n}건을 비웠습니다. 다음 분석은 새로 검색합니다.` : '비울 응답이 없습니다.');
+    drawInventory();
     e.target.blur();
+  });
+
+}
+
+/** 바이트를 사람이 읽는 단위로 */
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * "전부 지우고 처음부터" 확인창.
+ *
+ * ★무엇이 지워지는지 목록으로 보여준 뒤에 묻는다.★
+ * 되돌릴 수 없는 일에 "정말요?"만 묻는 것은 확인이 아니다.
+ * 특히 여기에는 API 키가 들어 있어서, 지운다는 사실을 모르고 누르면 안 된다.
+ */
+function confirmNuke(mount, handlers) {
+  if (document.getElementById('nuke-confirm')) return;
+
+  const items = listStoredData();
+  const grouped = new Map();
+  for (const it of items) {
+    const g = grouped.get(it.label) || { count: 0, sensitive: it.sensitive };
+    grouped.set(it.label, { count: g.count + 1, sensitive: g.sensitive });
+  }
+
+  const el = document.createElement('div');
+  el.id = 'nuke-confirm';
+  el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4';
+  el.innerHTML = `
+    <div class="w-full max-w-sm rounded-lg border border-line bg-white p-6" role="dialog" aria-modal="true">
+      <p class="text-maintext font-medium mb-1">이 사이트가 저장한 것을 전부 지울까요?</p>
+      <p class="text-sm text-secondary mb-3">되돌릴 수 없습니다.</p>
+
+      <ul class="text-xs text-maintext space-y-1 mb-3 rounded border border-line bg-slate-50 px-3 py-2">
+        ${[...grouped.entries()].map(([label, g]) => `
+          <li>· ${esc(label)}${g.count > 1 ? ` × ${g.count}` : ''}
+            ${g.sensitive ? '<span class="text-red-600">(민감)</span>' : ''}</li>`).join('')
+          || '<li class="text-secondary">지울 것이 없습니다.</li>'}
+      </ul>
+
+      <p class="text-xs text-secondary mb-5 leading-relaxed">
+        기록을 남겨두려면 먼저 <strong class="text-maintext">내보내기</strong>를 이용하세요.
+        다른 사이트의 저장값은 건드리지 않습니다.
+      </p>
+
+      <div class="flex gap-2">
+        <button id="nuke-cancel" class="flex-1 rounded border border-line hover:border-mjcblue transition-colors py-2 text-sm text-maintext">취소</button>
+        <button id="nuke-go" class="flex-1 rounded bg-red-600 hover:bg-red-500 transition-colors py-2 text-sm font-medium text-white">전부 지우기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  const close = () => el.remove();
+  el.querySelector('#nuke-cancel').addEventListener('click', close);
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  el.querySelector('#nuke-go').addEventListener('click', () => {
+    close();
+    const n = clearAllStoredData();
+    handlers.onWipedAll?.(n);
   });
 }
 
@@ -928,32 +1033,8 @@ function normSkillName(s) {
   return typeof s === 'string' ? s : String(s?.name ?? '');
 }
 
-function confirmReset(mount, handlers) {
-  if (document.getElementById('reset-confirm')) return;
-
-  const el = document.createElement('div');
-  el.id = 'reset-confirm';
-  el.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4';
-  el.innerHTML = `
-    <div class="w-full max-w-sm rounded-lg border border-line bg-white p-6" role="dialog" aria-modal="true">
-      <p class="text-maintext font-medium mb-1">정말 프로필과 활동 기록을 모두 삭제할까요?</p>
-      <p class="text-sm text-secondary mb-2">이 작업은 되돌릴 수 없습니다.</p>
-      <p class="text-xs text-secondary mb-5 leading-relaxed">
-        입력해 둔 <strong class="text-maintext">API 키</strong>와 저장된 AI 응답도 함께 삭제됩니다.
-        기록을 남겨두려면 먼저 <strong class="text-maintext">내 데이터 관리 → 내보내기</strong>를 이용하세요.
-      </p>
-      <div class="flex gap-2">
-        <button id="reset-cancel" class="flex-1 rounded border border-line hover:border-mjcblue transition-colors py-2 text-sm text-maintext">취소</button>
-        <button id="reset-confirm-btn" class="flex-1 rounded bg-red-600 hover:bg-red-500 transition-colors py-2 text-sm font-medium text-white">삭제</button>
-      </div>
-    </div>`;
-  document.body.appendChild(el);
-
-  const close = () => el.remove();
-  el.querySelector('#reset-cancel').addEventListener('click', close);
-  el.addEventListener('click', (e) => { if (e.target === el) close(); });
-  el.querySelector('#reset-confirm-btn').addEventListener('click', () => {
-    close();
-    handlers.onReset();
-  });
-}
+// confirmReset 은 confirmNuke 로 합쳤다.
+//   전에는 '프로필 초기화'가 프로필·캐시·키 3가지만 지우고 mypath.usage(크레딧 누적)를 남겼다.
+//   그래서 크레딧 배지에 앞선 사용량이 계속 떠 있었고, 완전히 되돌리려면
+//   개발자도구에서 localStorage.clear() 를 쳐야 했다.
+//   되돌릴 수 없는 버튼을 두 개 두면 둘 다 무섭고 무엇이 다른지 알 수 없으므로 하나로 합쳤다.

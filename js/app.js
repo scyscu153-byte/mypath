@@ -7,9 +7,11 @@
 
 import * as pipeline from './pipeline.js';
 import * as mockPipeline from './mock.js';
-import { getUsage, setUserKey, getUserKey, hasUserKey, clearCache } from './gateway.js';
+import { getUsage, setUserKey, getUserKey, hasUserKey } from './gateway.js';
 import { DEMO_PROFILE, DEMO_TARGETS } from './demo.js';
-import { loadProfile, saveProfile as persistProfile, clearProfile, markCompleted } from './profile.js';
+// 저장값을 지우는 일은 ui.js 가 확인창과 함께 처리한다 (무엇이 지워지는지 보여준 뒤 지운다).
+// 여기서는 지운 뒤 화면 상태만 되돌린다.
+import { loadProfile, saveProfile as persistProfile, markCompleted } from './profile.js';
 import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
 
 const useMock = new URLSearchParams(location.search).has('mock');
@@ -240,27 +242,30 @@ function goProfile() {
       saveProfile();
       goProfile(); // 저장 후 뷰 모드로 다시 그린다 (수정된 값 즉시 반영)
     },
-    onReset: () => {
-      // ★ 프로필만 지우면 안 된다.
-      //   학교 실습실·심사장의 공용 PC를 생각하면, 앞사람이 "초기화"를 누르고 자리를 떠도
-      //   mypath.userKey 에 ★그 사람의 팩트챗 API 키가 평문으로★ 남는다.
-      //   다음 사람은 헤더의 "내 키 사용 중"을 보며 남의 월 크레딧을 쓰게 된다.
-      //   캐시에도 앞사람의 학과·갭 분석 결과가 12시간 남는다.
-      clearProfile();
-      clearCache();
-      setUserKey('');
-      profile = null;
-      currentTarget = null;
-      currentMatches = [];
-      updateCreditBadge();
-      injectHeaderControls();   // "내 키 사용 중" 표시를 되돌린다
-      goOnboarding();
-    },
     onImported: (next) => {
       profile = next;
       currentTarget = null;
       currentMatches = [];
       goProfile();
+    },
+    /**
+     * 이 사이트가 저장한 것을 전부 지웠다 (ui.js 가 이미 지웠고 여기는 화면만 되돌린다).
+     *
+     * ★프로필만 지우면 안 되는 이유.★
+     *   학교 실습실·심사장의 공용 PC를 생각하면, 앞사람이 "초기화"를 누르고 자리를 떠도
+     *   mypath.userKey 에 ★그 사람의 팩트챗 API 키가 평문으로★ 남는 구조였다.
+     *   다음 사람은 헤더의 "내 계정 사용 중"을 보며 남의 월 크레딧을 쓰게 된다.
+     *   캐시에도 앞사람의 학과·갭 분석 결과가 12시간 남는다.
+     *   그리고 mypath.usage 까지 지워야 크레딧 배지가 0에서 다시 시작한다.
+     */
+    onWipedAll: () => {
+      profile = null;
+      currentTarget = null;
+      currentMatches = [];
+      currentMeta = {};
+      updateCreditBadge();
+      injectHeaderControls();   // "내 계정 사용 중" 표시를 되돌린다
+      goOnboarding();
     },
   });
   showScreen('profile');
