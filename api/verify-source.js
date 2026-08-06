@@ -125,11 +125,9 @@ async function verifyOne(url, title) {
     if (titleMatches(title, text, html)) {
       return out('verified', { httpStatus, finalUrl, bytesRead });
     }
-    const words = titleWords(title);
     return out('unverified', {
       httpStatus, finalUrl, bytesRead,
-      probe: words.map((w) => `${w}:${text.includes(w) ? 'O' : 'X'}`).join(' '),
-      error: '페이지에서 프로그램 제목을 확인하지 못함',
+      error: '페이지는 열리지만 프로그램 제목을 확인하지 못했습니다',
     });
   } catch (e) {
     const aborted = e?.name === 'AbortError';
