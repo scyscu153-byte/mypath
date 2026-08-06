@@ -15,7 +15,7 @@ import {
   loadProfile, saveProfile as persistProfile, markCompleted,
   saveProgram, unsaveProgram,
 } from './profile.js';
-import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
+import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile, icon, esc } from './ui.js';
 
 const useMock = new URLSearchParams(location.search).has('mock');
 const impl = useMock ? mockPipeline : pipeline;
@@ -53,6 +53,7 @@ let running = false;
 
 function saveProfile() {
   profile = persistProfile(profile);
+  refreshProfileChip();
 }
 
 // ─────────────────────────────────────────────
@@ -255,6 +256,7 @@ function goProfile() {
       profile = next;
       currentTarget = null;
       currentMatches = [];
+      refreshProfileChip();
       goProfile();
     },
     // 담아둔 것을 프로필 화면에서 바로 이행 처리한다.
@@ -309,30 +311,57 @@ function updateCreditBadge() {
 }
 
 function injectHeaderControls() {
-  const badge = document.getElementById('credit-badge');
-  if (!badge) return;
+  // ★ 매번 봐야 하는 정보가 아니다.★
+  //   API 키/크레딧은 헤더 네비게이션에서 빼서 화면 왼쪽 아래 구석(#utility-corner)에
+  //   조그맣게 둔다 — 필요할 때 찾아보면 되는 부가 기능이라, 매번 시선이 가는
+  //   네비게이션 자리를 차지할 이유가 없다. 버튼임은 여전히 테두리로 알린다.
+  const corner = document.getElementById('utility-corner');
+  const creditBadge = document.getElementById('credit-badge');
+  if (corner && !document.getElementById('nav-key-btn') && !useMock) {
+    const keyBtn = document.createElement('button');
+    keyBtn.id = 'nav-key-btn';
+    keyBtn.type = 'button';
+    keyBtn.textContent = keyLabel();
+    keyBtn.className = 'text-[11px] font-medium text-secondary px-2.5 py-1 rounded-full border border-line bg-white/80 hover:border-mjcblue hover:text-mjcblue transition-colors';
+    keyBtn.addEventListener('click', openKeyPanel);
+    // 크레딧 위에 오도록, credit-badge 바로 앞에 끼워 넣는다
+    (creditBadge || corner).insertAdjacentElement(creditBadge ? 'beforebegin' : 'afterbegin', keyBtn);
+  }
 
-  if (!document.getElementById('nav-profile-btn')) {
-    const profileBtn = document.createElement('button');
-    profileBtn.id = 'nav-profile-btn';
-    profileBtn.textContent = '내 프로필';
-    profileBtn.className = 'text-xs text-secondary hover:text-mjcblue transition-colors mr-3';
-    profileBtn.addEventListener('click', () => {
+  refreshProfileChip();
+}
+
+/**
+ * 헤더 오른쪽 끝의 "내 프로필" 진입점.
+ * ★"내 프로필"이라는 글자 링크 대신, 학과·학년 정보와 사람 실루엣 아이콘을 한 알약에 합쳤다.★
+ * 텍스트 링크는 버튼이라는 게 잘 안 보였고, 정보(학과·학년)와 이동(프로필 보기)이
+ * 따로 떨어져 있어 둘이 같은 걸 가리키는지 알기 어려웠다. 하나로 합치면 둘 다 해결된다.
+ */
+function refreshProfileChip() {
+  const slot = document.getElementById('nav-right');
+  if (!slot) return;
+  let chip = document.getElementById('nav-profile-chip');
+
+  if (!profile) {
+    chip?.remove();
+    return;
+  }
+  if (!chip) {
+    chip = document.createElement('button');
+    chip.id = 'nav-profile-chip';
+    chip.type = 'button';
+    chip.className = 'flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-skysurface hover:bg-skysurface/70 transition-colors';
+    chip.addEventListener('click', () => {
       // 분석 중에는 막는다 — 나갔다가 결과가 도착하면 화면이 갑자기 튄다.
       if (isRunning()) return;
       if (profile) goProfile();
     });
-    badge.insertAdjacentElement('beforebegin', profileBtn);
+    slot.appendChild(chip);
   }
-
-  if (!document.getElementById('nav-key-btn') && !useMock) {
-    const keyBtn = document.createElement('button');
-    keyBtn.id = 'nav-key-btn';
-    keyBtn.textContent = keyLabel();
-    keyBtn.className = 'text-xs text-secondary hover:text-mjcblue transition-colors mr-3';
-    keyBtn.addEventListener('click', openKeyPanel);
-    badge.insertAdjacentElement('beforebegin', keyBtn);
-  }
+  chip.innerHTML = `
+    <span class="w-6 h-6 rounded-full bg-mjcblue text-white flex items-center justify-center shrink-0">${icon('user', 'w-3.5 h-3.5')}</span>
+    <span class="text-xs font-medium text-mjcblue">${esc(profile.department)} · ${profile.grade}학년</span>
+  `;
 }
 
 function keyLabel() {

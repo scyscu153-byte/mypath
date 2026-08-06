@@ -5,7 +5,7 @@ CareerBridge MJC is a growth navigator that connects opportunities across Myongj
 
 **Core promise:** 명전의 기회를, 내 목표에 연결하다.
 
-## 2. Brand concept: MJC Growth Bridge
+## 2. Brand concept — CareerBridge MJC's "growth bridge" motif
 
 ### Visual metaphor
 - **Tree / leaf:** capabilities and experiences accumulated by a student
@@ -79,7 +79,7 @@ Typography should be concise, highly legible, and grounded in everyday student l
 
 ### Opening panel
 - Dark navy surface
-- Small MJC Growth Bridge label
+- Small "CareerBridge MJC" wordmark label
 - Target role entry
 - Primary action: “내 성장 경로 분석하기”
 

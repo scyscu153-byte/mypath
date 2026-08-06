@@ -42,26 +42,45 @@
   /* 화면 전환 — .screen 중 [data-active] 만 보인다 */
   .screen { display: none; }
   .screen[data-active] { display: block; }
+
+  /* 완료 상태로 바뀔 때 살짝 튀어 오르는 느낌 — 배지/아이콘이 "지금 막 끝났다"를 알려준다 */
+  @keyframes pop-in {
+    0%   { transform: scale(.6); opacity: .5; }
+    60%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-pop { animation: pop-in .4s cubic-bezier(.34,1.56,.64,1); }
+
+  /* 리포트 카드가 아래에서 살짝 떠오르며 순서대로 나타난다 */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fade-up .45s ease-out both; }
 </style>
 </head>
 
 <body class="bg-surface text-maintext min-h-screen font-sans">
 
 <!-- ══════════════════════════════════════════════════════════
-     헤더
+     헤더 — 스크롤해도 상단에 붙어있는다 (sticky). 로고 + 내 프로필만 남기고
+     크레딧·API 버튼은 화면 왼쪽 아래 구석(#utility-corner)으로 옮겼다.
      ══════════════════════════════════════════════════════════ -->
-<header class="border-b border-line bg-white">
-  <div class="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
-    <div>
-      <h1 class="text-lg font-bold text-navy">CareerBridge MJC</h1>
-      <p class="text-xs text-secondary">명전의 기회를, 내 목표에 연결하다</p>
+<header class="sticky top-0 z-30 border-b border-line bg-white/90 backdrop-blur shadow-sm">
+  <div class="max-w-5xl mx-auto px-5 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="w-9 h-9 rounded-lg bg-gradient-to-br from-navy to-mjcblue text-white flex items-center justify-center font-bold text-base shrink-0">C</span>
+      <div>
+        <h1 class="text-base font-bold text-navy leading-tight">CareerBridge MJC</h1>
+        <p class="text-[11px] text-secondary leading-tight">명전의 기회를, 내 목표에 연결하다</p>
+      </div>
     </div>
-    <!-- 크레딧 잔량 — gateway.js 가 갱신 -->
-    <div id="credit-badge" class="text-xs text-secondary tabular-nums"></div>
+    <!-- 내 프로필 알약(학과·학년 + 사람 아이콘)이 여기 꽂힌다 -->
+    <div id="nav-right" class="flex items-center"></div>
   </div>
 </header>
 
-<main class="max-w-3xl mx-auto px-5 py-8">
+<main class="max-w-5xl mx-auto px-5 py-8">
 
   <!-- ══════════════════════════════════════════════════════════
        화면 1 · 온보딩 — 기본정보 입력 (최초 1회)
@@ -106,7 +125,7 @@
      푸터 — 신뢰성 고지 (설계 원칙 1)
      ══════════════════════════════════════════════════════════ -->
 <footer class="border-t border-line mt-16">
-  <div class="max-w-3xl mx-auto px-5 py-6 text-xs text-secondary leading-relaxed">
+  <div class="max-w-5xl mx-auto px-5 py-6 text-xs text-secondary leading-relaxed">
     <p>
       이 도구는 <strong class="text-maintext">프로그램의 참여 자격을 판정하지 않습니다.</strong>
       신청 자격·학년 제한·중복 참여 제한·마감일은 반드시 원문에서 확인하세요.
@@ -126,6 +145,16 @@
     </p>
   </div>
 </footer>
+
+<!-- ══════════════════════════════════════════════════════════
+     왼쪽 아래 구석 — API 키 버튼 · 누적 크레딧.
+     네비게이션에서 눈에 덜 띄게 뺐다 — 매번 봐야 하는 정보가 아니라
+     필요할 때만 찾아보면 되는 부가 정보라서다.
+     ══════════════════════════════════════════════════════════ -->
+<div id="utility-corner" class="fixed bottom-4 left-4 z-40 flex flex-col items-start gap-1.5">
+  <!-- 크레딧 잔량 — gateway.js 가 갱신. API 키 버튼은 app.js가 이 위에 끼워 넣는다. -->
+  <div id="credit-badge" class="text-[11px] text-secondary/80 tabular-nums"></div>
+</div>
 
 <script type="module" src="./js/app.js"></script>
 </body>

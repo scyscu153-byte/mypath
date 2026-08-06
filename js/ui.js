@@ -13,13 +13,33 @@ import { PERSONA_MODEL, clearCache, listStoredData, clearAllStoredData } from '.
 import { exportProfile, exportFilename, importProfile, isSaved } from './profile.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
-function esc(str) {
+export function esc(str) {
   if (str === null || str === undefined) return '';
   return String(str)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+/**
+ * 완전 플랫한 흰색 SVG 라인 아이콘 — 이모지 대신 쓴다.
+ * 이모지는 OS·브라우저마다 색과 스타일이 제각각이라 "플랫하고 통일된" 느낌을 낼 수 없다.
+ * 색은 currentColor 를 따르므로, 부모 엘리먼트에 text-white 를 주면 그대로 흰 아이콘이 된다.
+ */
+const ICON_PATHS = {
+  search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  chart: '<line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="8"/><line x1="18" y1="20" x2="18" y2="4"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="10" y="10" width="4" height="4"/><line x1="10" y1="1" x2="10" y2="6"/><line x1="14" y1="1" x2="14" y2="6"/><line x1="10" y1="18" x2="10" y2="23"/><line x1="14" y1="18" x2="14" y2="23"/><line x1="18" y1="10" x2="23" y2="10"/><line x1="18" y1="14" x2="23" y2="14"/><line x1="1" y1="10" x2="6" y2="10"/><line x1="1" y1="14" x2="6" y2="14"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.5 3.5-7 8-7s8 2.5 8 7"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" fill="currentColor" stroke="none"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
+  alert: '<path d="M12 3 22 20H2z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17.3" r="1" fill="currentColor" stroke="none"/>',
+};
+
+export function icon(name, cls = 'w-6 h-6') {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name] || ''}</svg>`;
 }
 
 /**
@@ -162,8 +182,11 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
  */
 export function renderTarget(mount, { onSubmit, demoTargets }) {
   mount.innerHTML = `
-    <h2 class="text-xl font-bold mb-1">어떤 목표를 향해 가고 있나요?</h2>
-    <p class="text-sm text-secondary mb-6">기업명을 정확히 몰라도 괜찮습니다. 직군이나 분야만 적어도 됩니다.</p>
+    <div class="rounded-xl bg-navy text-white p-6 mb-6">
+      <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-2.5 py-1 rounded-full bg-white/10">🌉 MJC GROWTH BRIDGE</span>
+      <h2 class="text-xl font-bold mt-3 mb-1">어떤 목표를 향해 가고 있나요?</h2>
+      <p class="text-sm text-white/70">기업명을 정확히 몰라도 괜찮습니다. 직군이나 분야만 적어도 됩니다.</p>
+    </div>
 
     ${
       demoTargets && demoTargets.length
@@ -263,29 +286,56 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
 
 const STAGE_ORDER = [STAGE.REQUIRED_SKILLS, STAGE.GAP_ANALYSIS, STAGE.PROGRAM_SEARCH, STAGE.PERSONA_REVIEW];
 
+// 큰 아이콘 한눈에 보이게 — 문장은 전부 늘어놓지 않고 지금 하고 있는 단계 것만 크게 보여준다.
+// 이모지 대신 플랫 SVG 아이콘을 쓰고, 진행 중인 단계는 핑 링 애니메이션으로 강조한다.
+const STAGE_ICON = {
+  [STAGE.REQUIRED_SKILLS]: icon('search'),
+  [STAGE.GAP_ANALYSIS]: icon('chart'),
+  [STAGE.PROGRAM_SEARCH]: icon('grid'),
+  [STAGE.PERSONA_REVIEW]: icon('cpu'),
+};
+const STAGE_SHORT_LABEL = {
+  [STAGE.REQUIRED_SKILLS]: '역량 검색',
+  [STAGE.GAP_ANALYSIS]: '격차 분석',
+  [STAGE.PROGRAM_SEARCH]: '프로그램 검색',
+  [STAGE.PERSONA_REVIEW]: 'AI 4개 평가',
+};
+const ICON_IDLE = 'stage-icon w-16 h-16 rounded-full border-2 border-line bg-white flex items-center justify-center text-2xl opacity-40 transition-colors';
+const ICON_ACTIVE = 'stage-icon w-16 h-16 rounded-full border-2 border-mjcblue bg-mjcblue text-white flex items-center justify-center text-2xl transition-colors';
+const ICON_DONE = 'stage-icon w-16 h-16 rounded-full border-2 border-growth bg-growth text-white flex items-center justify-center text-2xl transition-colors animate-pop';
+const ICON_ERROR = 'stage-icon w-16 h-16 rounded-full border-2 border-red-500 bg-red-50 text-red-500 flex items-center justify-center text-2xl transition-colors';
+
 /**
  * @param {HTMLElement} mount
+ * @param {{onRetry?: () => void, onNewTarget?: () => void}} [handlers] 실패했을 때 다시 시도/목표 재입력으로 나갈 길
  * @returns {(event: import('./types.js').StageEvent) => void} 파이프라인 진행에 맞춰 호출할 업데이트 함수
  */
 export function renderProgress(mount, handlers = {}) {
   mount.innerHTML = `
-    <h2 class="text-xl font-bold mb-6">분석하고 있어요</h2>
-    <ul id="stage-list" class="space-y-3">
+    <h2 class="text-xl font-bold text-center mb-8">분석하고 있어요</h2>
+
+    <div id="stage-list" class="flex items-start justify-between max-w-lg mx-auto mb-8">
       ${STAGE_ORDER.map(
-        (stage) => `
-        <li data-stage="${stage}" class="flex items-center gap-3 rounded border border-line bg-white px-4 py-3 text-sm text-secondary">
-          <span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-line"></span>
-          <span class="stage-label">${esc(STAGE_LABEL[stage])}</span>
-        </li>`
+        (stage, i) => `
+        <div data-stage="${stage}" class="stage-item flex flex-col items-center gap-2 flex-1">
+          <span class="stage-ping-wrap relative inline-flex">
+            <span class="stage-ping absolute inset-0 rounded-full bg-mjcblue opacity-0"></span>
+            <span class="${ICON_IDLE}">${STAGE_ICON[stage]}</span>
+          </span>
+          <span class="stage-short text-[11px] text-secondary text-center leading-tight font-medium">${esc(STAGE_SHORT_LABEL[stage])}</span>
+        </div>
+        ${i < STAGE_ORDER.length - 1 ? `<div class="stage-connector h-0.5 bg-line flex-1 mt-8 mx-1"></div>` : ''}`
       ).join('')}
-    </ul>
-    <div id="stage-detail" class="mt-6 text-sm text-secondary space-y-1"></div>
+    </div>
+
+    <div id="stage-detail" class="max-w-md mx-auto text-center min-h-[3rem]"></div>
     <!-- 실패했을 때 나갈 길. 평소에는 비어 있다. -->
-    <div id="stage-actions" class="mt-6"></div>
+    <div id="stage-actions" class="max-w-md mx-auto mt-4"></div>
   `;
 
   const detail = mount.querySelector('#stage-detail');
   const actions = mount.querySelector('#stage-actions');
+  const connectors = () => mount.querySelectorAll('.stage-connector');
 
   /**
    * ★실패 화면에 반드시 나갈 길을 만든다.★
@@ -316,87 +366,112 @@ export function renderProgress(mount, handlers = {}) {
   }
 
   return function onStage(event) {
-    const li = mount.querySelector(`li[data-stage="${event.stage}"]`);
-    if (!li) {
+    const item = mount.querySelector(`.stage-item[data-stage="${event.stage}"]`);
+    if (!item) {
       // 모르는 단계 이름으로 온 이벤트를 그냥 버리면,
       // 실패했을 때 화면이 스피너에서 영원히 멈춘 것처럼 보인다.
       // 최소한 오류 문구는 반드시 남긴다.
       if (event.status === 'error') {
-        mount.querySelectorAll('.stage-icon.animate-spin').forEach((el) => {
-          el.outerHTML = '<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>';
+        mount.querySelectorAll('.stage-ping').forEach((el) => el.classList.remove('animate-ping', 'opacity-60'));
+        mount.querySelectorAll('.stage-icon').forEach((el) => {
+          if (el.className.includes('border-mjcblue')) {
+            el.className = ICON_ERROR;
+            el.textContent = '⚠️';
+          }
         });
-        detail.insertAdjacentHTML('beforeend',
-          `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>`);
+        detail.innerHTML = `
+          <p class="text-red-600 font-medium">${esc(event.message || '오류가 발생했어요')}</p>
+          <p class="text-secondary text-xs mt-1">잠시 후 다시 시도해주세요.</p>`;
         showRecovery();
       }
       return;
     }
-    const icon = li.querySelector('.stage-icon');
+    const icon = item.querySelector('.stage-icon');
+    const ping = item.querySelector('.stage-ping');
+    const idx = STAGE_ORDER.indexOf(event.stage);
 
     if (event.status === 'start') {
-      li.classList.remove('text-secondary');
-      li.classList.add('text-maintext');
-      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full border-2 border-mjcblue border-t-transparent animate-spin"></span>`;
+      icon.className = ICON_ACTIVE;
+      ping?.classList.add('animate-ping', 'opacity-60');
+      // 진행 중인 문장은 딱 하나만 — 지나간 단계 문장까지 쌓아두지 않는다.
+      detail.innerHTML = `<p class="text-base text-maintext font-medium leading-snug">${esc(STAGE_LABEL[event.stage])}</p>`;
     } else if (event.status === 'done') {
-      const doneIcon = li.querySelector('.stage-icon');
-      doneIcon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-mjcblue flex items-center justify-center text-[10px] text-white">✓</span>`;
+      icon.className = ICON_DONE;
+      icon.textContent = '✓';
+      ping?.classList.remove('animate-ping', 'opacity-60');
+      const line = connectors()[idx];
+      if (line) line.classList.replace('bg-line', 'bg-growth');
 
+      // 역량·갭 목록은 문단이 아니라 알약 칩으로 — 근거 링크가 있으면 칩 자체가 링크가 된다.
       if (event.stage === STAGE.REQUIRED_SKILLS && Array.isArray(event.data)) {
-        // 역량 이름만 나열하면 "이거 출처 있는 거 맞아?"라는 질문에 답할 수 없다.
-        // 실제 채용공고 URL을 눈으로 확인할 수 있게 링크로 건다.
-        detail.insertAdjacentHTML(
-          'beforeend',
-          `<p><strong class="text-maintext">이 목표에 필요한 역량</strong></p>
-           <ul class="mt-1 space-y-0.5">
-             ${event.data
-               .map(
-                 (s) => `<li>${esc(s.name)}
-                   ${s.sourceUrl ? `<a href="${esc(s.sourceUrl)}" target="_blank" rel="noopener" class="text-mjcblue hover:underline">(근거 보기 ↗)</a>` : ''}
-                 </li>`
-               )
-               .join('')}
-           </ul>`
-        );
-      }
-      if (event.stage === STAGE.GAP_ANALYSIS && Array.isArray(event.data)) {
-        detail.insertAdjacentHTML(
-          'beforeend',
-          `<p><strong class="text-maintext">내가 채워야 할 부분:</strong> ${event.data.map((g) => esc(g.name)).join(', ')}</p>`
-        );
+        detail.innerHTML = chipStrip(event.data);
+      } else if (event.stage === STAGE.GAP_ANALYSIS && Array.isArray(event.data)) {
+        detail.innerHTML = chipStrip(event.data);
+      } else {
+        detail.innerHTML = '';
       }
     } else if (event.status === 'error') {
-      icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>`;
-      detail.insertAdjacentHTML('beforeend', `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>`);
+      icon.className = ICON_ERROR;
+      icon.textContent = '⚠️';
+      ping?.classList.remove('animate-ping', 'opacity-60');
+      detail.innerHTML = `<p class="text-red-600 font-medium">${esc(event.message || '오류가 발생했어요')}</p>`;
       showRecovery();
     }
   };
+}
+
+function chipStrip(items) {
+  if (!items.length) return '';
+  return `<div class="flex flex-wrap justify-center gap-1.5">
+    ${items
+      .map((it) => {
+        const label = esc(it.name);
+        return it.sourceUrl
+          ? `<a href="${esc(it.sourceUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-skysurface text-mjcblue text-xs font-medium hover:underline">${label}<span class="text-[10px]">↗</span></a>`
+          : `<span class="inline-block px-2.5 py-1 rounded-full bg-skysurface text-mjcblue text-xs font-medium">${label}</span>`;
+      })
+      .join('')}
+  </div>`;
 }
 
 // ═══════════════════════════════════════════════════════════
 // 화면 4 · 추천 리포트
 // ═══════════════════════════════════════════════════════════
 
+// 4개 관점을 데이터 그리드가 아니라 "댓글/리뷰창"처럼 보여준다 —
+// 아바타(이니셜) + 이름 + 점수 배지 + 인용부호 코멘트 + 모델명(작성자 서명) 순서.
+const PERSONA_AVATAR = {
+  practitioner: { bg: 'bg-mjcblue', initial: '현' },
+  professor:    { bg: 'bg-navy',    initial: '교' },
+  senior:       { bg: 'bg-growth',  initial: '선' },
+  market:       { bg: 'bg-amber-600', initial: '분' },
+};
+
 function personaGrid(personaScores) {
   return `
-    <div class="grid grid-cols-2 gap-2 mt-3">
+    <div class="mt-3 space-y-2">
       ${PERSONAS.map((p) => {
         const v = personaScores[p.key];
         if (!v) return '';
         // 점수가 없을 수 있다 (그 모델이 응답에 실패한 경우).
         // 이때 "null/10" 이 찍히면 안 된다 — 실패는 실패라고 적는다.
         const failed = !Number.isFinite(v.score);
-        const scoreCell = failed
-          ? `<span class="font-mono text-secondary">– /10</span>`
-          : `<span class="font-mono text-mjcblue">${v.score}/10</span>`;
+        const avatar = PERSONA_AVATAR[p.key] || { bg: 'bg-secondary', initial: '?' };
+        const scoreBadge = failed
+          ? `<span class="shrink-0 text-[11px] font-medium text-secondary">응답 실패</span>`
+          : `<span class="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-skysurface text-mjcblue text-[11px] font-bold font-mono">${v.score}/10</span>`;
         const model = PERSONA_MODEL[p.key] || '';
         return `
-          <div class="rounded bg-white border border-line px-2.5 py-2 ${failed ? 'opacity-60' : ''}">
-            <div class="flex items-center justify-between text-[11px] text-secondary">
-              <span>${esc(p.label)} <span class="text-secondary">· ${esc(p.sub)}</span></span>
-              ${scoreCell}
+          <div class="flex gap-2.5 rounded-lg border border-line bg-white p-3 ${failed ? 'opacity-60' : ''}">
+            <span class="shrink-0 w-8 h-8 rounded-full ${avatar.bg} text-white flex items-center justify-center text-xs font-bold">${avatar.initial}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-semibold text-maintext">${esc(p.label)} <span class="font-normal text-secondary">· ${esc(p.sub)}</span></span>
+                ${scoreBadge}
+              </div>
+              <p class="text-sm ${failed ? 'text-secondary' : 'text-maintext'} mt-1 leading-snug">${failed ? esc(v.comment || '이번엔 응답을 받지 못했어요.') : `“${esc(v.comment)}”`}</p>
+              ${model ? `<p class="text-[10px] text-secondary mt-1">${esc(model)}</p>` : ''}
             </div>
-            <p class="text-xs ${failed ? 'text-secondary' : 'text-maintext'} mt-1 leading-snug">${esc(v.comment)}</p>
-            ${model ? `<p class="text-[10px] text-secondary mt-1 font-mono">${esc(model)}</p>` : ''}
           </div>`;
       }).join('')}
     </div>
@@ -489,7 +564,7 @@ function pruneStalePosters(mount, ms = 12_000) {
   }, ms);
 }
 
-function programCard(match) {
+function programCard(match, index = 0) {
   // 담아둔 것인지 — 다시 그릴 때도 상태가 유지돼야 한다
   const saved = isSaved(match.programTitle);
 
@@ -517,23 +592,23 @@ function programCard(match) {
   const searchQuery = encodeURIComponent(`site:mjc.ac.kr "${match.programTitle}"`);
 
   return `
-    <div class="rounded-lg border border-line bg-white shadow-sm p-4" data-match-id="${esc(match.id)}">
+    <div class="animate-fade-up rounded-lg border border-line bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5" style="animation-delay:${Math.min(index, 8) * 70}ms" data-match-id="${esc(match.id)}">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <!-- break-words: 제목·요약은 AI가 쓴 문자열이라 길이를 보장할 수 없다.
                한글은 word-break:keep-all 이 공백에서만 끊으므로, 공백 없는 긴 문자열이 오면
                카드를 뚫고 페이지 전체에 가로 스크롤이 생긴다. -->
-          <h4 class="font-semibold text-maintext break-words">${esc(match.programTitle)}</h4>
-          <p class="text-sm text-secondary mt-0.5 break-words">${esc(match.summary)}</p>
+          <h4 class="text-base font-semibold text-maintext break-words">${esc(match.programTitle)}</h4>
+          <p class="text-sm text-secondary mt-1 break-words leading-relaxed">${esc(match.summary)}</p>
         </div>
-        <div class="flex flex-col items-end gap-1">
+        <div class="flex flex-col items-end gap-1 shrink-0">
           ${availabilityBadge(match)}
           ${originBadge}
           ${disagreementBadge}
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-secondary">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-4 text-xs text-secondary">
         ${sourceStatusBadge(match)}
         <span>${esc(match.sourceDomain)}</span>
         ${match.postedAt ? `<span>게시일 ${esc(match.postedAt)}</span>` : ''}
@@ -548,7 +623,10 @@ function programCard(match) {
 
       ${posterImage(match)}
 
-      ${personaGrid(match.personaScores)}
+      <div class="mt-4 pt-4 border-t border-line">
+        <p class="text-xs font-semibold text-secondary mb-2">4개 관점 코멘트</p>
+        ${personaGrid(match.personaScores)}
+      </div>
 
       <div class="mt-4 flex items-center justify-between gap-3">
         <label class="complete-label flex items-center gap-2 text-sm ${match.isCompleted ? 'text-mjcblue' : 'text-maintext'}">
@@ -558,11 +636,12 @@ function programCard(match) {
 
         <!-- ★"관심 있다"와 "참여했다"는 다른 상태다.★
              전에는 「참여했어요」 하나뿐이라, 아직 신청도 안 한 프로그램을
-             담아둘 곳이 없었다. 잊어버리거나, 참여하지도 않고 체크를 누르게 된다. -->
+             담아둘 곳이 없었다. 잊어버리거나, 참여하지도 않고 체크를 누르게 된다.
+             노란 계열로 눈에 띄게 — 옅은 테두리 링크였을 때는 있는 기능인지도 몰랐다. -->
         ${match.isCompleted ? '' : `
         <button type="button"
-          class="btn-save shrink-0 rounded-full border px-3 py-1 text-xs transition-colors
-                 ${saved ? 'border-mjcblue text-mjcblue' : 'border-line text-secondary hover:border-mjcblue hover:text-mjcblue'}"
+          class="btn-save shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors
+                 ${saved ? 'border-amber-500 bg-amber-500 text-white shadow-sm' : 'border-amber-300 bg-warn/15 text-amber-800 hover:bg-warn/30 hover:border-amber-400'}"
           aria-pressed="${saved}">
           ${saved ? '★ 담아둠' : '☆ 담아두기'}
         </button>`}
@@ -621,15 +700,18 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget, 
             목표를 조금 넓게 적으면 (예: "게임 개발자" → "소프트웨어 개발자") 결과가 나올 수 있습니다.
           </p>
         </div>` : ''}
-      ${[...byGap.entries()]
-        .map(
-          ([gap, list]) => `
+      ${(() => {
+        let cardIndex = 0;
+        return [...byGap.entries()]
+          .map(
+            ([gap, list]) => `
         <section>
           <h3 class="text-sm font-semibold text-mjcblue mb-3">"${esc(gap)}" 관련 프로그램</h3>
-          <div class="space-y-3">${list.map(programCard).join('')}</div>
+          <div class="space-y-3">${list.map((m) => programCard(m, cardIndex++)).join('')}</div>
         </section>`
-        )
-        .join('')}
+          )
+          .join('');
+      })()}
     </div>
 
     <button id="btn-new-target"
@@ -686,10 +768,8 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget, 
 
       btn.setAttribute('aria-pressed', String(nowSaved));
       btn.textContent = nowSaved ? '★ 담아둠' : '☆ 담아두기';
-      btn.classList.toggle('border-mjcblue', nowSaved);
-      btn.classList.toggle('text-mjcblue', nowSaved);
-      btn.classList.toggle('border-line', !nowSaved);
-      btn.classList.toggle('text-secondary', !nowSaved);
+      btn.className = `btn-save shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors
+                 ${nowSaved ? 'border-amber-500 bg-amber-500 text-white shadow-sm' : 'border-amber-300 bg-warn/15 text-amber-800 hover:bg-warn/30 hover:border-amber-400'}`;
     });
   });
 
@@ -737,19 +817,19 @@ function renderProfileView(mount, profile, handlers) {
   // 실제로 달성된 구간만 초록으로 강조한다. 모션 없는 정적 표시로 유지한다 (8절 "모션은 절제되게").
   const growthPath = `
     <div class="flex items-start justify-between mb-6" aria-hidden="true">
-      <div class="flex flex-col items-center gap-1.5 flex-1">
-        <span class="w-3 h-3 rounded-full bg-navy"></span>
-        <span class="text-[11px] text-secondary text-center leading-tight">${esc(profile.department)}</span>
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <span class="w-12 h-12 rounded-full bg-navy text-white flex items-center justify-center">${icon('user', 'w-6 h-6')}</span>
+        <span class="text-xs text-secondary text-center leading-tight">${esc(profile.department)}</span>
       </div>
-      <div class="flex-1 h-px bg-mjcblue/30 mt-[5px]"></div>
-      <div class="flex flex-col items-center gap-1.5 flex-1">
-        <span class="w-3 h-3 rounded-full bg-mjcblue"></span>
-        <span class="text-[11px] text-secondary text-center leading-tight">보유 기술 ${skillCount}개</span>
+      <div class="flex-1 h-px bg-mjcblue/30 mt-6"></div>
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <span class="w-12 h-12 rounded-full bg-mjcblue text-white flex items-center justify-center">${icon('zap', 'w-6 h-6')}</span>
+        <span class="text-xs text-secondary text-center leading-tight">보유 기술 ${skillCount}개</span>
       </div>
-      <div class="flex-1 h-px ${done.length ? 'bg-growth' : 'bg-mjcblue/30'} mt-[5px]"></div>
-      <div class="flex flex-col items-center gap-1.5 flex-1">
-        <span class="w-3 h-3 rounded-full ${done.length ? 'bg-growth' : 'bg-white border-2 border-mjcblue/30'}"></span>
-        <span class="text-[11px] ${done.length ? 'text-growth font-medium' : 'text-secondary'} text-center leading-tight">완료한 활동 ${done.length}개</span>
+      <div class="flex-1 h-px ${done.length ? 'bg-growth' : 'bg-mjcblue/30'} mt-6"></div>
+      <div class="flex flex-col items-center gap-2 flex-1">
+        <span class="w-12 h-12 rounded-full flex items-center justify-center ${done.length ? 'bg-growth text-white animate-pop' : 'bg-white border-2 border-mjcblue/30 text-mjcblue/40'}">${icon('target', 'w-6 h-6')}</span>
+        <span class="text-xs ${done.length ? 'text-growth font-medium' : 'text-secondary'} text-center leading-tight">완료한 활동 ${done.length}개</span>
       </div>
     </div>
   `;
