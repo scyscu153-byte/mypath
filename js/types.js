@@ -103,6 +103,12 @@
  * @property {string|null} [applicationEndAt]
  * @property {string|null} [eventStartAt]
  * @property {string|null} [eventEndAt]
+ *
+ * ─ 교외 활동 (사용자가 켰을 때만) ─
+ * @property {'campus'|'external'} [scope]  교내(기본)인지 교외인지.
+ *   ★없으면 'campus' 로 본다.★ 화면·검증·고지가 이 값에 따라 갈리므로,
+ *   교외 항목에는 반드시 'external' 이 붙어 있어야 한다.
+ * @property {string|null} [host]  교외 항목의 주관 기관 (교내는 department 를 쓴다)
  */
 
 /**
@@ -179,7 +185,7 @@ export const DISCLAIMER = Object.freeze({
   /**
    * ★ 판별의 한계를 먼저 밝힌다.
    *
-   *   교내 프로그램 판별 정확도는 실측 92.4%다 (게시글 1,055건 기준).
+   *   프로그램이 아닌 게시글의 차단율은 실측 92.4%다 (게시글 1,055건 기준).
    *   나머지를 더 걷어내려면 기준을 높여야 하는데, 그러면 실제 교내 프로그램이
    *   함께 배제되는 것을 측정으로 확인했다 (최대 46%까지 유실).
    *   ★누락보다 오탐이 낫다★ 는 판단으로 현재 기준을 유지하고,

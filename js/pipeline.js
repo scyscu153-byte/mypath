@@ -856,6 +856,128 @@ ${gapList}${interestBlock}
   };
 }
 
+// ─────────────────────────────────────────────
+//  3-B단계 · 교외 활동 검색 (선택)
+//
+//  ★왜 넣었나.★
+//  방학에 써 보니 결과가 비었다. 팀원 말로는 학기 중이 아니라
+//  올라온 교내 공지 자체가 적어서인데, 실제로 그렇다 —
+//  교내 자료를 아무리 잘 뒤져도 없는 것은 안 나온다.
+//  게다가 수집 자료에는 유니티·언리얼·C#·머신러닝이 ★0건★이라,
+//  게임과 학생이 자기 전공대로 목표를 적으면 메울 것이 없다.
+//
+//  그래서 학교 밖 공모전·대외활동을 ★따로 한 묶음★ 찾아준다.
+//
+//  ★교내 결과와 절대 섞지 않는다.★
+//  이 도구가 신뢰를 얻은 근거는 "출처를 mjc.ac.kr 로 제한한다"였다.
+//  그 약속을 깨지 않으려면, 밖에서 가져온 것은
+//    · 기본적으로 꺼져 있고 (학생이 직접 켜야 한다)
+//    · scope:'external' 로 표시되어 화면에서 따로 묶이고
+//    · 출처 검증(verify-source)이 교내 전용이라 검증되지 않는다는 것을
+//      숨기지 않고 알린다.
+//  섞어 놓고 "다 찾아줍니다"라고 하는 편이 보기엔 좋지만,
+//  그 순간 교내 결과의 신뢰도까지 같이 떨어진다.
+// ─────────────────────────────────────────────
+
+/**
+ * 교외 공모전·대외활동을 찾는다.
+ *
+ * @param {Array<{name:string,reason?:string}>} gaps  부족한 역량
+ * @param {string} target        목표 기업·직군 (검색어를 좁히는 데 쓴다)
+ * @param {string|null} interestAreas
+ * @returns {Promise<{matches:Array, removed:string[]}>}
+ */
+export async function searchExternalActivities(gaps, target, interestAreas) {
+  const gapList = gaps.map((g) => `- ${g.name}`).join('\n');
+  const today = todayISO();
+  const interest = String(interestAreas || '').trim();
+
+  const { text } = await callModel({
+    task: TASK.SEARCH_EXTERNAL,
+    system: `너는 대학생이 참여할 수 있는 ★교외★ 공모전·대외활동을 찾아주는 도우미다.
+오늘은 ${today}이다.
+
+★여기서 찾는 것은 학교 밖 활동이다.★ 명지전문대학 교내 프로그램은 이미 따로 찾았으므로
+mjc.ac.kr 안의 것은 넣지 마라. 중복된다.
+
+찾을 것 —
+- 공모전, 경진대회, 해커톤
+- 대외활동, 서포터즈, 기자단
+- 기업·기관 주관 교육 프로그램, 부트캠프, 챌린지
+- 인턴십·현장실습 공고 (모집 중인 것)
+
+${NO_JUDGMENT_GUARD}
+
+★신청 마감이 이미 지난 것은 넣지 마라.★ 공모전은 마감이 곧 전부다.
+   마감일을 확인할 수 없으면 넣되 applicationEndAt 을 null 로 둬라. 지어내지 마라.
+
+★전문대 1~2학년이 실제로 지원할 수 있는 것을 우선해라.★
+   대학원생·경력자 대상, 특정 대학 재학생 한정은 빼라.
+${JSON_ONLY}`,
+    user: `아래 학생이 참여할 만한 ★학교 밖★ 공모전·대외활동을 찾아줘.
+오늘 날짜는 ${today}이다.
+
+[목표] ${target}
+[부족한 역량]
+${gapList}${interest ? `\n[관심 분야] ${interest}` : ''}
+
+- 전체 3~6개 ─ 상한이지 채워야 할 목표가 아니다.
+  ★관련 있는 걸 못 찾았으면 억지로 채우지 말고 적게 내라.★
+- 서로 다른 종류로 섞어라 (공모전만 6개 말고, 대외활동·교육도 함께).
+- 각 항목에 반드시 ★열리는 출처 URL★을 붙여라. 없으면 그 항목을 빼라.
+- host 에는 주관 기관을 적어라 (예: "한국콘텐츠진흥원", "네이버 커넥트재단").
+
+형식:
+[{"gapSkill":"어떤 역량을 메우는지","programTitle":"활동명","summary":"한 줄 설명","sourceUrl":"출처","host":"주관 기관","postedAt":"게시일 또는 null","applicationStartAt":null,"applicationEndAt":null,"eventStartAt":null,"eventEndAt":null}]`,
+    maxTokens: 2000,
+  });
+
+  const raw = parseJson(text, []);
+  const list = Array.isArray(raw) ? raw : [];
+  const removed = [];
+
+  const cleaned = list
+    .map((p) => ({
+      gapSkill: String(p.gapSkill || '').trim(),
+      programTitle: String(p.programTitle || '').trim(),
+      summary: String(p.summary || '').trim(),
+      // ★여기서도 링크는 반드시 씻는다.★ 교내가 아니라고 해서 아무 스킴이나
+      //   받아주면 javascript: 가 그대로 화면의 href 로 들어간다.
+      sourceUrl: safeHttpUrl(p.sourceUrl),
+      host: String(p.host || '').trim() || null,
+      postedAt: p.postedAt || null,
+      department: null,
+      applicationStartAt: p.applicationStartAt || null,
+      applicationEndAt: p.applicationEndAt || null,
+      eventStartAt: p.eventStartAt || null,
+      eventEndAt: p.eventEndAt || null,
+      scope: 'external',
+      origin: 'external',
+    }))
+    .filter((p) => {
+      if (!p.programTitle || !p.sourceUrl) return false;
+      // ★교내 것이 섞여 오면 뺀다.★ 교내는 이미 따로 찾았으니 중복이고,
+      //   무엇보다 "교외" 칸에 교내 것이 있으면 구분 자체가 무너진다.
+      if (isAllowedSource(p.sourceUrl)) { removed.push(p.sourceUrl); return false; }
+      return true;
+    })
+    .map((p) => ({ ...p, sourceDomain: safeHost(p.sourceUrl) }));
+
+  // 같은 활동이 두 번 오는 경우가 있어 제목으로 한 번 접는다
+  const seen = new Set();
+  const deduped = cleaned.filter((p) => {
+    if (seen.has(p.programTitle)) return false;
+    seen.add(p.programTitle);
+    return true;
+  });
+
+  // 마감이 지난 것은 교내와 같은 규칙으로 떨어뜨린다
+  const now = new Date();
+  const matches = deduped.map(judge).filter((p) => canRecommend(p, now));
+
+  return { matches, removed };
+}
+
 /**
  * 출처 URL 을 서버 함수로 실제로 열어 보고 상태를 붙인다.
  *
@@ -1262,6 +1384,11 @@ ${listText}
       //   10회 측정을 통째로 낭비했다. 필드를 추가할 때 이 목록을 반드시 함께 고칠 것.
       poster: m.poster ?? null,
 
+      // 교내/교외 구분 — ★여기 빠뜨리면 교외 항목이 교내인 척하며 섞인다.★
+      //   위 경고가 정확히 이 자리를 두고 한 말이다.
+      scope: m.scope === 'external' ? 'external' : 'campus',
+      host: m.host ?? null,
+
       // P0-2 모집 상태
       availability: m.availability ?? 'unknown',
       dateConfidence: m.dateConfidence ?? 'unknown',
@@ -1312,7 +1439,11 @@ function disagreementOf(scores) {
  * @param {string} [opts.jobPostingUrl]  사용자가 직접 붙여넣은 실제 채용공고 URL (선택)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]  진행 콜백
  */
-export async function run({ profile, target, jobPostingUrl, interestAreas, onStage = () => {} }) {
+export async function run({
+  profile, target, jobPostingUrl, interestAreas,
+  includeExternal = false,   // 교외 활동도 함께 찾을지 — ★기본은 끔★
+  onStage = () => {},
+}) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   /**
@@ -1368,9 +1499,28 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   });
 
+  // 3-B단계 · 교외 활동 (학생이 켰을 때만)
+  //
+  //   ★실패해도 전체를 멈추지 않는다.★ 이건 덤이지 본체가 아니다.
+  //   교외 검색이 안 됐다고 교내 결과까지 못 보게 되면 더 나쁘다.
+  //   그래서 step() 을 쓰지 않고 여기서 직접 삼킨다.
+  let externalMatches = [];
+  let externalFailed = false;
+  if (includeExternal) {
+    try {
+      const ext = await searchExternalActivities(gapSkills, target, interestAreas);
+      externalMatches = ext.matches;
+    } catch (e) {
+      externalFailed = true;
+      console.warn('[교외 활동 검색 실패 — 교내 결과는 그대로 보여준다]', e?.message || e);
+    }
+  }
+
   // 4단계
+  //   교외 항목도 같은 4명에게 평가받는다. 교내와 잣대가 다르면
+  //   나란히 놓인 점수를 비교할 수 없다.
   const reviewed = await step(STAGE.PERSONA_REVIEW,
-    () => reviewByPersonas(matches, profile, target),
+    () => reviewByPersonas([...matches, ...externalMatches], profile, target),
     '평가 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PERSONA_REVIEW, 'done', reviewed);
 
@@ -1389,6 +1539,14 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     },
     // 실시간 검색이 못 메운 갭을 수집 데이터로 몇 건 보충했는지
     supplement: { count: supplementedCount, collectedAt },
+    // 교외 활동을 켰는지 / 몇 건 나왔는지 / 실패했는지.
+    //   화면은 이 값으로 "켰는데 0건"과 "아예 안 켰음"을 구분해 말한다.
+    //   둘을 같은 화면으로 보여주면 학생은 기능이 고장난 줄 안다.
+    external: {
+      requested: includeExternal,
+      failed: externalFailed,
+      count: reviewed.filter((m) => m.scope === 'external').length,
+    },
     // 4명 중 실제로 몇 명이 평가했는지 (실패한 모델이 있으면 여기 남는다)
     review: {
       personaCount: PERSONAS.length,

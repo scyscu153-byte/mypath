@@ -28,6 +28,8 @@ const {
 } = await import('../js/pipeline.js');
 // 정규 학사과정 판별은 fallback.js 한 곳에만 있다 (두 곳에 적으면 어긋난다)
 const { isCurriculum } = await import('../js/fallback.js');
+// 교내/교외를 가르는 근거. 교외 활동 기능이 이 판정 하나에 얹혀 있다.
+const { isAllowedSource } = await import('../js/gateway.js');
 const P = await import('../js/profile.js');
 
 // ─────────────────────────────────────────────
@@ -404,6 +406,59 @@ t('불러오기: 정상 http 링크는 살아남는다',
     .savedPrograms[0].sourceUrl === 'https://cls.mjc.ac.kr/a');
 t('불러오기: 정상 나이는 숫자로 남는다',
   P.importProfile('{"department":"a","grade":1,"age":24}').age === 24);
+
+// ─────────────────────────────────────────────
+//  10. 교외 활동 · 그리고 「뭘 넣든 결과가 똑같다」 수정
+//
+//  방학에 써 보니 결과가 비어 보였고, 무엇을 넣든 비슷한 것이 나왔다.
+//  원인은 두 가지였다 —
+//    ① 낱말이 흔한 것 하나로 줄면 문턱이 1로 내려가 전부 통과했다
+//    ② 교내 자료에 없는 것은 아무리 뒤져도 안 나온다 (유니티·언리얼 0건)
+//  ①은 여기서 고정하고, ②는 교외 검색으로 푼다.
+// ─────────────────────────────────────────────
+describe('10. 교외 활동 · 매칭 변별력');
+
+// ── ① 변별력 ──
+const aiHits = findFallback(['AI 활용 능력'], 20).map((p) => p.programTitle);
+
+t('AI 목표에 제목이 AI인 프로그램은 나온다',
+  aiHits.some((x) => x.includes('AI Study+')));
+
+// 「잡카페」는 제목에 AI가 없고 요약에만 스쳤다. 이런 것이 34건 중 9건이었다.
+t('요약에만 낱말이 스친 것은 이제 안 나온다',
+  !aiHits.some((x) => x.includes('잡카페')));
+
+t('자료에 없는 역량은 억지로 채우지 않고 0건이다',
+  findFallback(['치석제거 실습'], 8).length === 0);
+
+t('빈 질의는 0건이다', findFallback([], 8).length === 0);
+
+t('불용어만 있는 질의는 0건이다', findFallback(['실무 경험 능력'], 8).length === 0);
+
+// ── ② 교내/교외 경계 ──
+// 교외 항목을 골라내는 근거는 isAllowedSource 다. 이게 흔들리면 구분이 무너진다.
+t('교외 URL 은 교내로 판정되지 않는다',
+  !isAllowedSource('https://www.contest.co.kr/notice/1'));
+
+t('교내 URL 은 교내로 판정된다',
+  isAllowedSource('https://cls.mjc.ac.kr/board/1'));
+
+t('교내를 흉내 낸 주소는 교내가 아니다',
+  !isAllowedSource('https://mjc.ac.kr.evil.com/x'));
+
+// 교외 항목도 링크는 똑같이 씻는다 — 교내가 아니라고 느슨해지면 안 된다
+t('교외 항목의 javascript: 링크는 제거된다',
+  safeHttpUrl('javascript:alert(1)') === '');
+
+t('교외 항목의 정상 링크는 살아남는다',
+  safeHttpUrl('https://www.contest.co.kr/x') === 'https://www.contest.co.kr/x');
+
+// ── ③ scope 기본값 ──
+// scope 가 없으면 교내로 본다. 화면이 이 규칙으로 두 묶음을 가른다.
+const asCampus = (m) => (m.scope === 'external' ? 'external' : 'campus');
+t('scope 가 없으면 교내로 본다', asCampus({}) === 'campus');
+t('scope:external 은 교외로 본다', asCampus({ scope: 'external' }) === 'external');
+t('엉뚱한 scope 값은 교내로 떨어진다', asCampus({ scope: 'weird' }) === 'campus');
 
 // ─────────────────────────────────────────────
 //  결과

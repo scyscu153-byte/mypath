@@ -74,6 +74,7 @@ export const TASK = Object.freeze({
   SEARCH_REQUIRED_SKILLS: 'searchRequiredSkills', // 목표 기업의 요구 역량 — 실시간 정보
   ANALYZE_GAP: 'analyzeGap',                      // 갭 분석 — 추론
   SEARCH_PROGRAMS: 'searchPrograms',              // 교내 프로그램 — 실시간 정보
+  SEARCH_EXTERNAL: 'searchExternal',              // 교외 공모전·대외활동 — 실시간 정보 (선택)
   SUGGEST_TARGETS: 'suggestTargets',              // 학과로 목표 후보 제안 — 경량 추론
   CLASSIFY: 'classify',                           // 입력 분류 — 초경량
 });
@@ -81,6 +82,9 @@ export const TASK = Object.freeze({
 const ROUTE = Object.freeze({
   [TASK.SEARCH_REQUIRED_SKILLS]: 'sonar-pro',
   [TASK.SEARCH_PROGRAMS]: 'sonar-pro',
+  // 교외 활동도 실시간 검색이 필요하다 — 공모전은 마감이 곧 생명이라
+  // 수집해 둔 자료로는 답할 수 없다.
+  [TASK.SEARCH_EXTERNAL]: 'sonar-pro',
   [TASK.ANALYZE_GAP]: 'gpt-5.4-mini',
   // 학과명만 보고 진로를 뽑는 일이라 실시간 검색이 필요 없다.
   // 가장 싼 모델로도 충분하다 (1회 약 1크레딧).

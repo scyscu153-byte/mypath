@@ -171,6 +171,7 @@ function goTarget() {
         jobPostingUrl: input.jobPostingUrl,
         interestAreas: input.interestAreas,
         globalInterest: input.globalInterest,
+        includeExternal: input.includeExternal === true,
         requiredSkills: [],
         gapSkills: [],
         createdAt: new Date().toISOString(),
@@ -236,6 +237,7 @@ async function runPipeline() {
       target: mine.companyOrRole,
       jobPostingUrl: mine.jobPostingUrl,
       interestAreas: mine.interestAreas,
+      includeExternal: mine.includeExternal === true,
       onStage,
     });
     // 그 사이 새 분석이 시작됐다면 이 결과는 낡은 것이다. 화면에 그리지 않는다.
@@ -249,6 +251,7 @@ async function runPipeline() {
       droppedForSchedule: result.filtered?.droppedForSchedule,
       droppedForBrokenLink: result.filtered?.droppedForBrokenLink,
       supplementedCount: result.supplement?.count,
+      external: result.external,
     };
     updateCreditBadge();
     goReport();

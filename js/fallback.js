@@ -2158,8 +2158,22 @@ function haystackOf(p) {
   return [p.programTitle, p.summary, ...(p.skillKeywords || [])].join(' ').toLowerCase();
 }
 
+/**
+ * ★제목·키워드만 따로 본다.★
+ *
+ * 요약(summary)까지 합쳐 놓고 보면 "그 프로그램이 무엇에 관한 것인가"와
+ * "설명에 그 낱말이 한 번 스쳤는가"가 구별되지 않는다.
+ * 실제로 「ai」로 34건이 걸렸는데 그중 9건은 제목에 AI가 없었다 —
+ * 「잡카페(JOB CAFE)」·「도전! 학습톡톡」·「커리어 잡고 가자!」 같은 것들이
+ * AI 목표를 넣은 학생에게 딸려 나오고 있었다.
+ */
+function subjectOf(p) {
+  return [p.programTitle, ...(p.skillKeywords || [])].join(' ').toLowerCase();
+}
+
 /** 미리 계산해두는 검색 색인 (143건 × 1회) */
 const HAYSTACKS = FALLBACK_PROGRAMS.map(haystackOf);
+const SUBJECTS = FALLBACK_PROGRAMS.map(subjectOf);
 
 /**
  * 낱말이 몇 건에 등장하는지 — ★희소성★ 판단에 쓴다.
@@ -2183,10 +2197,36 @@ const RARE_MAX = 12;
  *        희소한 낱말(12건 이하 등장) = 2점  — 하나만 맞아도 인정
  *        흔한 낱말                  = 1점  — 두 개 이상 맞아야 인정
  *   ③ 2점 미만이면 억지로 채우지 않고 뺀다
+ *   ④ ★흔한 낱말 하나로만 걸린 경우에는 제목·키워드에 있어야 인정한다.★
  *
  * 이렇게 하면
  *   "Unity 엔진 활용 능력"  → unity(희소) 하나로 실감콘텐츠 과정이 잡히고
  *   "치석제거 실습"         → 치석제거(0건)·실습(불용어) → 0건으로 정직하게 비운다
+ *
+ * ─────────────────────────────────────────────────────────
+ * ④를 나중에 덧붙인 이유 — 「뭘 넣든 결과가 똑같다」
+ *
+ * ③의 문턱은 `min(2, 가능한최대점수)`라서, 살아남은 낱말이 흔한 것 하나뿐이면
+ * 문턱이 1로 내려간다. 그러면 ★그 낱말이 어딘가 있기만 하면 전부 통과★하고,
+ * 전부 같은 1점이라 순위도 갈리지 않는다. 앞에서 8개를 자르면
+ * 언제나 같은 8개다.
+ *
+ * 실측: 「AI 활용 능력」과 「AI 모델 이해」의 결과가 ★8건 전부 동일★했다.
+ *       둘 다 남는 낱말이 "ai" 하나뿐이고(활용·능력·이해는 불용어, 모델은 0건),
+ *       "ai"는 143건 중 34건에 있어서 그 34건의 앞쪽 8개가 그대로 나온 것이다.
+ *
+ * 이 문턱 완화 자체는 필요하다 — 「포트폴리오」처럼 낱말 하나가 곧 질의 전체인
+ * 경우까지 막아버리면 안 된다. 그래서 없애는 대신 ★어디에 맞았는지★를 본다.
+ * 제목이나 키워드에 있으면 그 프로그램은 실제로 그것에 관한 것이고,
+ * 요약에만 스쳤으면 아니다. 34건 중 9건이 후자였다.
+ *
+ * ★이걸로도 안 풀리는 부분이 남는다 — 숨기지 않고 적어둔다.★
+ * 고친 뒤에도 「AI 활용 능력」과 「AI 모델 이해」는 여전히 결과가 같다.
+ * 둘 다 쓸 수 있는 낱말이 "ai" 하나로 줄어드는데, 수집 자료에 AI 제목이
+ * 25건 있을 뿐 그 안을 더 가를 정보가 없기 때문이다("모델"은 0건).
+ * 이건 점수 계산이 아니라 ★자료 범위★의 문제라서 여기서는 못 고친다.
+ * 교외 활동 검색(searchExternalActivities)을 옵션으로 둔 이유가 이것이다 —
+ * 교내에 없는 것은 교내 자료를 아무리 잘 뒤져도 나오지 않는다.
  *
  * @param {string[]} gapNames  부족한 역량 이름들
  * @param {number}   limit
@@ -2252,17 +2292,30 @@ export function findFallback(gapNames = [], limit = 8) {
 
   const scored = FALLBACK_PROGRAMS.map((p, i) => {
     const hay = HAYSTACKS[i];
+    const subject = SUBJECTS[i];
     let score = 0;
-    for (const { n, w } of weighted) if (hay.includes(n)) score += w;
-    return { p, score };
+    let subjectHits = 0;   // 제목·키워드에 맞은 낱말 수
+    let hitCount = 0;      // 어디든 맞은 낱말 수
+    for (const { n, w } of weighted) {
+      if (!hay.includes(n)) continue;
+      score += w;
+      hitCount += 1;
+      if (subject.includes(n)) subjectHits += 1;
+    }
+    return { p, score, subjectHits, hitCount };
   });
 
   return scored
     .filter((s) => s.score >= threshold)
+    // ★규칙 ④ — 낱말 하나로만 걸렸으면 그게 제목·키워드에 있어야 한다.★
+    //   두 개 이상 맞았다면 요약에만 있어도 우연이라고 보기 어려우니 통과시킨다.
+    .filter((s) => s.hitCount >= 2 || s.subjectHits >= 1)
     // ★정규 교육과정은 여기서 빼낸다.★ 위 CURRICULUM_RE 주석 참조 —
     //   낱말이 겹친다는 이유만으로 "이 전공 트랙을 이수하세요"를 권할 수는 없다.
     .filter((s) => !CURRICULUM_RE.test(s.p.programTitle))
-    .sort((a, b) => b.score - a.score)
+    // 점수가 같으면 ★제목·키워드에 맞은 것을 앞으로.★
+    //   이게 없으면 동점일 때 수집 순서가 곧 순위가 된다.
+    .sort((a, b) => b.score - a.score || b.subjectHits - a.subjectHits)
     .slice(0, limit)
     .map((s) => s.p);
 }

@@ -238,6 +238,26 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
         <span class="text-sm text-maintext">해외/글로벌 진출도 고려하고 있어요</span>
       </label>
 
+      <!-- ★교외 활동은 기본이 꺼짐이다.★
+           이 도구의 신뢰는 "출처를 mjc.ac.kr 로 제한한다"에서 나온다.
+           밖을 뒤지는 것은 학생이 직접 켜야 하고, 무엇이 달라지는지
+           켜기 ★전에★ 알려야 한다. -->
+      <div class="rounded border border-line bg-skysurface/60 p-3">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input name="includeExternal" type="checkbox" class="mt-0.5 rounded bg-white border-line" />
+          <span class="text-sm text-maintext font-medium">
+            교외 활동도 함께 찾기
+            <span class="text-secondary font-normal">(공모전 · 대외활동 · 서포터즈)</span>
+          </span>
+        </label>
+        <p class="mt-1.5 ml-6 text-xs text-secondary leading-relaxed">
+          방학이라 교내 공지가 적을 때 도움이 됩니다.
+          교외 항목은 <strong class="text-maintext">따로 묶어서</strong> 보여드리고,
+          <strong class="text-maintext">출처 검증은 교내 것만</strong> 합니다.
+          약 20초와 크레딧 28이 더 듭니다.
+        </p>
+      </div>
+
       <fieldset class="pt-2">
         <legend class="text-sm text-maintext mb-2">활동 스타일 <span class="text-secondary">(선택, 추천에 살짝 반영돼요)</span></legend>
         <div class="flex gap-4 text-sm">
@@ -267,6 +287,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
       jobPostingUrl: String(fd.get('jobPostingUrl') || '').trim() || null,
       interestAreas: String(fd.get('interestAreas') || '').trim() || null,
       globalInterest: fd.get('globalInterest') === 'on',
+      includeExternal: fd.get('includeExternal') === 'on',
       activityPreference: fd.get('activityPreference') || null,
     });
   });
@@ -591,12 +612,25 @@ function programCard(match, index = 0) {
   // ★ 이 항목이 실시간 검색에서 왔는지, 미리 수집해둔 데이터에서 왔는지 숨기지 않는다.
   //   "실시간 검색"이라고 말한 화면에 수집 데이터가 표시 없이 섞이면 그게 약점이 된다.
   //   구분해서 적으면 오히려 근거가 된다.
+  const isExternal = match.scope === 'external';
+
   const originBadge = match.origin === 'collected'
     ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-skysurface text-mjcblue text-[11px]">사전 조사 자료</span>`
     : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-growth/10 text-growth text-[11px]">방금 검색한 결과</span>`;
 
+  // 교외 항목은 카드 자체에도 표시한다.
+  //   구역 제목만으로는 부족하다 — 담아두면 프로필 화면에서 교내 것과 나란히 놓이고,
+  //   그때는 구역 제목이 따라오지 않는다.
+  const scopeBadge = isExternal
+    ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-navy/10 text-navy text-[11px] font-medium">교외</span>`
+    : '';
+
   const period = periodText(match);
-  const searchQuery = encodeURIComponent(`site:mjc.ac.kr "${match.programTitle}"`);
+  // ★교외 항목에 site:mjc.ac.kr 을 붙이면 절대 안 나온다.★
+  //   "다른 검색으로 찾아보기"가 늘 빈 결과를 주는 버튼이 된다.
+  const searchQuery = encodeURIComponent(
+    isExternal ? `"${match.programTitle}" 모집` : `site:mjc.ac.kr "${match.programTitle}"`,
+  );
 
   return `
     <div class="animate-fade-up rounded-lg border border-line bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5" style="animation-delay:${Math.min(index, 8) * 70}ms" data-match-id="${esc(match.id)}">
@@ -609,6 +643,7 @@ function programCard(match, index = 0) {
           <p class="text-sm text-secondary mt-1 break-words leading-relaxed">${esc(match.summary)}</p>
         </div>
         <div class="flex flex-col items-end gap-1 shrink-0">
+          ${scopeBadge}
           ${availabilityBadge(match)}
           ${originBadge}
           ${disagreementBadge}
@@ -618,6 +653,7 @@ function programCard(match, index = 0) {
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-4 text-xs text-secondary">
         ${sourceStatusBadge(match)}
         <span>${esc(match.sourceDomain)}</span>
+        ${match.host ? `<span>주관 ${esc(match.host)}</span>` : ''}
         ${match.postedAt ? `<span>게시일 ${esc(match.postedAt)}</span>` : ''}
       </div>
       ${period ? `<p class="text-xs text-secondary mt-1">${period}</p>` : ''}
@@ -664,9 +700,83 @@ function programCard(match, index = 0) {
  * @param {{onComplete: (match: import('./types.js').ProgramMatch) => void, onNewTarget: () => void}} handlers
  * @param {{droppedForSource?: number, supplementedCount?: number}} [meta]  검색이 실제로 무엇을 거르고 보충했는지
  */
+/**
+ * 교외 활동 구역.
+ *
+ * ★세 가지 상태를 서로 다르게 말한다.★
+ *   · 아예 켜지 않았다      → 이 구역을 그리지 않는다 (없는 기능처럼 조용히)
+ *   · 켰는데 0건            → "찾지 못했다"고 분명히 말한다
+ *   · 켰는데 검색이 실패했다 → "실패했다"고 말한다
+ * 셋을 같은 화면으로 보여주면 학생은 기능이 고장난 줄 안다.
+ * 특히 「켰는데 0건」을 빈 화면으로 두면, 켠 것 자체가 무시된 것처럼 보인다.
+ *
+ * @param {Array} list          교외 항목들
+ * @param {{requested?:boolean, failed?:boolean}} [info]
+ */
+function externalSection(list, info) {
+  if (!info?.requested) return '';   // 켜지 않았으면 아무것도 그리지 않는다
+
+  const head = `
+    <div class="flex items-baseline gap-2 mb-1">
+      <h3 class="text-base font-bold text-navy">교외 활동</h3>
+      <span class="text-xs text-secondary">공모전 · 대외활동 · 서포터즈</span>
+    </div>`;
+
+  // ★이 고지는 목록보다 먼저 나와야 한다.★
+  //   교내 항목에는 붙는 「링크 확인됨」 배지가 여기에는 없는데,
+  //   그 이유를 나중에 알게 되면 "왜 어떤 건 검증하고 어떤 건 안 하지"가 된다.
+  const notice = `
+    <div class="rounded border border-warn/60 bg-warn/10 p-3 text-xs text-maintext leading-relaxed mb-4">
+      아래는 <strong>학교 밖</strong> 활동입니다. 명지전문대학이 주관하거나 보증하지 않습니다.<br>
+      교내 항목과 달리 <strong>출처 검증을 하지 않습니다</strong> —
+      검증 기능이 <code>mjc.ac.kr</code> 전용이라 밖의 링크에는 쓸 수 없습니다.
+      <strong>신청 전에 반드시 원문에서 주최·자격·마감을 확인하세요.</strong>
+    </div>`;
+
+  if (info.failed) {
+    return `
+    <section class="mt-10 pt-8 border-t border-line">
+      ${head}
+      <div class="rounded-lg border border-line bg-white shadow-sm p-5 mt-3">
+        <p class="text-sm text-maintext">교외 활동을 찾는 중 문제가 생겼습니다.</p>
+        <p class="text-xs text-secondary mt-1.5 leading-relaxed">
+          교내 결과는 위에 그대로 있습니다. 다시 시도하면 대개 해결됩니다.
+        </p>
+      </div>
+    </section>`;
+  }
+
+  if (!list.length) {
+    return `
+    <section class="mt-10 pt-8 border-t border-line">
+      ${head}
+      <div class="rounded-lg border border-line bg-white shadow-sm p-5 mt-3">
+        <p class="text-sm text-maintext">지금 신청할 수 있는 교외 활동을 찾지 못했습니다.</p>
+        <p class="text-xs text-secondary mt-1.5 leading-relaxed">
+          마감이 지난 것은 제외했습니다. 목표를 조금 넓게 적으면 결과가 나올 수 있습니다.
+        </p>
+      </div>
+    </section>`;
+  }
+
+  let i = 10_000;   // 교내 카드와 애니메이션 순번이 겹치지 않게 띄워 둔다
+  return `
+    <section class="mt-10 pt-8 border-t border-line">
+      ${head}
+      <p class="text-xs text-secondary mb-3">${list.length}건</p>
+      ${notice}
+      <div class="space-y-3">${list.map((m) => programCard(m, i++)).join('')}</div>
+    </section>`;
+}
+
 export function renderReport(mount, target, matches, { onComplete, onNewTarget, onToggleSave }, meta = {}) {
+  // ★교내와 교외를 먼저 가른다.★ 한 목록에 섞으면
+  //   "출처를 mjc.ac.kr 로 제한한다"는 이 도구의 근거가 무너진다.
+  const campus = matches.filter((m) => m.scope !== 'external');
+  const external = matches.filter((m) => m.scope === 'external');
+
   const byGap = new Map();
-  for (const m of matches) {
+  for (const m of campus) {
     if (!byGap.has(m.gapSkill)) byGap.set(m.gapSkill, []);
     byGap.get(m.gapSkill).push(m);
   }
@@ -720,6 +830,8 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget, 
           .join('');
       })()}
     </div>
+
+    ${externalSection(external, meta.external)}
 
     <button id="btn-new-target"
       class="w-full mt-8 rounded border border-line hover:border-mjcblue transition-colors py-2.5 text-sm font-medium text-maintext">
