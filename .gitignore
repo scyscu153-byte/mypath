@@ -61,6 +61,14 @@ desktop.ini
 !src/assets/**/*.png
 !src/assets/**/*.svg
 
+# 보고서 부록 E 의 화면 캡처만은 예외로 둔다.
+#   report/시너지_개발보고서.html 이 이 파일들을 참조하므로, 빠지면
+#   저장소에서 보고서를 열었을 때 ★이미지가 전부 깨진다.★
+#   위 차단 규칙은 "실수로 올라가는 것"을 막으려는 것이고,
+#   이 7장은 앱 화면만 담겼는지 눈으로 확인하고 넣은 것이다 (키·개인정보 없음).
+!report/screens/*.jpg
+!report/screens/*.png
+
 # ── Vercel CLI 가 추가함 ──────────────────────
 .vercel
 .env*
