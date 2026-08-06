@@ -192,6 +192,13 @@ const SOURCE_RANK = { verified: 0, unverified: 1, null: 1, undefined: 1, broken:
 
 export function sortForDisplay(list) {
   return [...list].sort((a, b) => {
+    // ★ "관심 분야"는 목표 역량과 무관한 항목이라 맨 뒤로 보낸다.
+    //   실측에서 어학 연수가 맨 위에 왔는데 4개 모델이 전부 2~3점을 줬다.
+    //   학생이 직접 원한 것이므로 보여주는 게 맞지만, 갭을 메우는 것이 먼저다.
+    const ai = String(a.gapSkill || '').startsWith(INTEREST_PREFIX) ? 1 : 0;
+    const bi = String(b.gapSkill || '').startsWith(INTEREST_PREFIX) ? 1 : 0;
+    if (ai !== bi) return ai - bi;
+
     const av = (AVAIL_RANK[a.availability] ?? 3) - (AVAIL_RANK[b.availability] ?? 3);
     if (av !== 0) return av;
     const sv = (SOURCE_RANK[a.sourceStatus] ?? 1) - (SOURCE_RANK[b.sourceStatus] ?? 1);
