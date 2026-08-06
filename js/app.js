@@ -479,9 +479,23 @@ function openKeyPanel() {
   el.innerHTML = `
     <div class="w-full max-w-lg rounded-lg border border-line bg-white p-6" role="dialog" aria-modal="true">
       <h3 class="text-lg font-bold text-navy mb-1">내 팩트챗 키로 쓰기</h3>
-      <p class="text-sm text-secondary mb-5">
-        지금은 <strong class="text-maintext">${hasUserKey() ? '내 키' : '데모 키'}</strong>로 동작하고 있어요.
-      </p>
+      ${hasUserKey()
+        ? `<p class="text-sm text-secondary mb-5">
+             지금은 <strong class="text-maintext">내 키</strong>로 동작하고 있어요.
+             크레딧은 본인 몫에서 나갑니다.
+           </p>`
+        : `<p class="text-sm text-secondary mb-2">
+             지금은 <strong class="text-maintext">데모 키</strong>로 동작하고 있어요.
+           </p>
+           <!-- ★데모 키가 한시적이라는 사실을 여기서 말해야 한다.★
+                이 패널은 학생이 "키를 받을지 말지" 정하는 화면이다.
+                안 적으면 "데모로 계속 쓰면 되는데 굳이?"로 읽힌다. -->
+           <div class="rounded border border-warn/60 bg-warn/10 p-3 text-xs text-maintext leading-relaxed mb-5">
+             <strong>데모 키는 해커톤 심사용으로 잠시 열어둔 것입니다.</strong>
+             팀원 개인 키를 나눠 쓰는 것이라 사용량 제한이 있고,
+             <strong>심사가 끝나면 중단됩니다.</strong>
+             계속 쓰시려면 아래에서 <strong>본인 키</strong>를 발급받아 넣어주세요.
+           </div>`}
 
       <label class="block text-xs text-secondary mb-1">팩트챗 API 키</label>
       <input id="key-input" type="password" autocomplete="off" spellcheck="false"

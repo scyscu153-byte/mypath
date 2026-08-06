@@ -439,24 +439,23 @@ async function send(payload) {
   return data;
 }
 
-/** 크레딧 잔량 조회 */
+/**
+ * 크레딧 잔량 조회 — ★자기 키가 있을 때만★ 동작한다.
+ *
+ * 데모 모드에서는 조회하지 않는다. 데모 키는 팀원 개인 계정의 키라서,
+ * 그 잔량은 ★남의 계정 상태★다. 방문자에게 보여줄 것도 아니고
+ * 프록시에 조회 경로를 열어 두면 로그인 없이 아무나 읽게 된다.
+ * 그래서 프록시의 credits 경로는 닫아 두었다(api/gateway.js 참조).
+ *
+ * @returns {Promise<{quota:number,used:number,remaining:number}|null>}
+ *          자기 키가 없으면 null
+ */
 export async function fetchCredits() {
   const userKey = getUserKey();
+  if (!userKey) return null;
 
-  if (userKey) {
-    // 직접 호출 (GET)
-    const res = await fetch(`${DIRECT_BASE}/credits/`, {
-      headers: { 'x-api-key': userKey },
-    });
-    if (!res.ok) throw new Error('크레딧 조회 실패');
-    const data = await res.json();
-    return data.total || null;
-  }
-
-  const res = await fetch(PROXY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint: 'credits' }),
+  const res = await fetch(`${DIRECT_BASE}/credits/`, {
+    headers: { 'x-api-key': userKey },
   });
   if (!res.ok) throw new Error('크레딧 조회 실패');
   const data = await res.json();

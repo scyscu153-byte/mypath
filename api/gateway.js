@@ -168,13 +168,16 @@ export default async function handler(req, res) {
 
   // endpoint 는 클라이언트가 준 값이라 그대로 URL 에 이어붙이면 안 된다.
   // 호스트는 못 바꾸지만, 데모 키가 실린 요청을 게이트웨이의 임의 경로로 보낼 수 있다.
-  if (endpoint !== 'chat/completions' && endpoint !== 'credits') {
+  //
+  // ★크레딧 조회(credits)는 여기서 뺐다.★
+  //   데모 키는 ★팀원 개인 계정★의 키다. credits 는 그 계정의
+  //   quota·used·remaining 을 그대로 돌려주는데,
+  //     · 아무나 부를 수 있고 (로그인 없음)
+  //     · 아래 사용량 제한보다 ★먼저★ 반환돼서 횟수 제한도 안 걸리고
+  //     · 정작 앱은 이 경로를 쓰지 않는다 (자기 키가 있을 때만 게이트웨이로 직접 조회)
+  //   쓰지도 않는 길을 열어 두고 남의 계정 상태를 공개할 이유가 없다.
+  if (endpoint !== 'chat/completions') {
     return res.status(400).json({ error: '허용되지 않은 경로입니다' });
-  }
-
-  // 크레딧 조회는 본문 없이 GET 으로 처리
-  if (endpoint === 'credits') {
-    return forwardCredits(key, res);
   }
 
   // ★ 입력 크기 상한.
@@ -209,7 +212,11 @@ export default async function handler(req, res) {
       error: rate.scope === 'global'
         ? '데모 모드 사용량이 한도에 도달했습니다'
         : '요청이 너무 잦습니다',
-      hint: '본인의 팩트챗 키를 입력하면 제한 없이 사용할 수 있습니다. '
+      // ★"제한 없이"는 사실이 아니다.★ 본인 키에도 월 10,000 크레딧 한도가 있다.
+      //   여기서 없어지는 것은 ★이 데모 서버가 건 호출 제한★뿐이다.
+      //   둘을 뭉뚱그리면 "내 키를 넣으면 공짜로 무한"이라는 오해가 남는다.
+      hint: '데모 모드는 여러 사람이 키 하나를 나눠 쓰기 때문에 호출 제한이 있습니다. '
+          + '본인의 팩트챗 키(재학생 월 10,000 크레딧)를 입력하면 이 제한 없이 본인 몫만큼 쓸 수 있고, '
           + '입력한 키는 저희 서버를 거치지 않고 브라우저에서 직접 사용됩니다.',
     });
   }
@@ -248,22 +255,6 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: '게이트웨이 호출 실패', detail: String(err) });
   } finally {
     clearTimeout(timer);
-  }
-}
-
-/** 크레딧 잔량 조회 — GET 이라 별도 처리 */
-async function forwardCredits(key, res) {
-  try {
-    const upstream = await fetch(`${BASE_URL}/credits/`, {
-      headers: { 'x-api-key': key },
-    });
-    const text = await upstream.text();
-    res.status(upstream.status);
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    return res.send(text);
-  } catch (err) {
-    return res.status(502).json({ error: '크레딧 조회 실패', detail: String(err) });
   }
 }
 
