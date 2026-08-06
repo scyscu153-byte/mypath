@@ -276,7 +276,18 @@
   <div><div class="v">143</div><div class="k">직접 수집·검증한<br>교내 프로그램</div></div>
   <div><div class="v">4</div><div class="k">서로 다른 회사의<br>평가 모델</div></div>
 </div>
-<p class="note">모든 수치는 2026-08-06 ~ 08-07 실제 실행 로그와 크레딧 잔량 API로 측정한 값이다. 추정치가 아니다.</p>
+<p class="note">실측 수치는 2026-08-06 ~ 08-07 실제 실행 로그와 크레딧 잔량 API로 측정했다.
+가정 계산이 섞인 곳은 산식을 함께 적었다.</p>
+
+<div class="callout">
+<span class="lbl">3분만 보신다면 — 이 네 곳입니다</span>
+<table style="margin:0">
+<tr><td style="width:52%">10번 돌리면 몇 번 되는가</td><td><b>8.5.4</b> 성공률 실측 (1차 6/10 → 원인 특정 → 2차 <b>9/10</b>)</td></tr>
+<tr><td>어느 AI를 왜 거기에 썼는가</td><td><b>7.4</b> 모델 6종을 같은 작업으로 재고 골랐다 (<b>82% 절감</b>)</td></tr>
+<tr><td>걸러내지 못하는 것은 무엇인가</td><td><b>8.6.4~8.6.5</b> 차단율 <b>92%</b>, 남은 7.6%와 그 이유</td></tr>
+<tr><td>사람이 늘면 비용은 어떻게 되는가</td><td><b>9.4</b> 학생마다 크레딧이 이미 배정돼 있다</td></tr>
+</table>
+</div>
 
 <h3>목차</h3>
 <ol class="toc">
@@ -290,7 +301,7 @@
   <li><span class="t">테스트 및 검증</span><span class="d">실측 수치 — 비용 · 출처 순도 · 배포 검증</span></li>
   <li><span class="t">기대 효과 및 확장 가능성</span><span class="d">확장해도 비용이 늘지 않는 구조</span></li>
   <li><span class="t">결론</span><span class="d">의의와 한계</span></li>
-  <li><span class="t">부록</span><span class="d">체크리스트 · 실행 방법 · 응답 예시</span></li>
+  <li><span class="t">부록</span><span class="d">실행 방법 · 실제 응답 예시 · 참고 출처 · 화면 캡처 8장</span></li>
 </ol>
 </section>
 
@@ -471,6 +482,7 @@ A가 이행한 프로그램은 프로필 이력에 반영되어 다음 분석 �
 <table>
 <tr><th style="width:24%">기능</th><th style="width:40%">설명</th><th>사용자 가치</th></tr>
 <tr><td>프로필 입력</td><td>학과, 학년, 보유 역량, 자격증 입력</td><td>개인화 기준 확보</td></tr>
+<tr><td>지원 대상 선택 <span class="note">(선택)</span></td><td>장애학생 지원 대상이면 표시 — 해당 프로그램을 <b>함께</b> 검색<br><span class="note">표시하지 않으면 추천에서 제외 · 이 선택은 브라우저에만 저장</span></td><td>필요한 학생에게만 닿고, 아닌 학생에게는 노출되지 않는다</td></tr>
 <tr><td>목표 설정</td><td>목표 기업·직군 입력<br>(선택) 실제 채용공고 URL 입력<br>(선택) <b>관심 분야</b> — 전공과 무관해도 참여하고 싶은 분야</td><td>분석 방향 명확화<br>목표 밖의 관심사도 놓치지 않음</td></tr>
 <tr><td>요구 역량 검색</td><td>기업·직무 관련 핵심 역량 실시간 탐색</td><td>준비 기준 확인</td></tr>
 <tr><td>Gap 분석</td><td>보유 역량과 요구 역량 비교</td><td>우선 보완 과제 도출</td></tr>
@@ -1136,7 +1148,7 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <section>
 <h2>8. 테스트 및 검증</h2>
 <p class="note">아래 모든 수치는 <b>2026-08-06 ~ 08-07</b> 실제 실행 로그, 크레딧 잔량 API, 배포 환경 HTTP 응답으로 측정한 값이다.
-수집·크레딧 측정은 08-06, 배포 환경 검증과 부록 C의 실행 예시는 08-07 배포본 기준이다.</p>
+수집·크레딧 측정은 08-06, 배포 환경 검증과 부록 B의 실행 예시는 08-07 배포본 기준이다.</p>
 
 <h3>8.1 기능 테스트</h3>
 <table>
@@ -1484,6 +1496,25 @@ citations 총량이 줄어 검색 반환 건수도 줄지만, 부족분은 수�
 <b>자격을 판정하지 않는다는 원칙과 상충하지 않는다 — 판정 주체가 시스템이 아니라 사용자 본인이다.</b>
 프로필은 브라우저에만 저장되므로 이 정보는 외부로 전송되지 않으며, 화면에도 그렇게 안내한다.</p>
 
+<div class="callout warn">
+<span class="lbl">설계는 맞았는데 되돌릴 길이 없었다</span>
+이 선택 항목이 <b>온보딩 화면에만</b> 있었다. 그래서
+처음에 표시하지 않은 학생은 <b>전체 초기화 말고는 켤 방법이 없었고</b>,
+표시한 학생은 <b>끌 방법이 없었다.</b>
+게다가 프로필 화면에 <b>표시 자체가 나오지 않아</b> 지금 어느 상태인지도 알 수 없었다.
+<b>정작 이 기능이 필요한 사람에게 한 번 지나가면 못 돌아오는 문이었다.</b><br>
+프로필 수정 폼에 같은 항목을 넣고, 켜져 있을 때는 프로필 화면에도
+「지원 대상 — 장애학생 지원 대상」이 보이도록 했다.
+저장할 때 폼이 값을 보내지 않은 경우에는 <b>기존 값을 지키도록</b> 했다 —
+전에 <code>traits</code>를 통째로 갈아끼워 이 값이 조용히 날아간 적이 있어서,
+같은 사고를 막는 쪽을 기본값으로 뒀다. 단위 테스트 <b>9종</b>으로 고정했다.
+</div>
+
+<p class="note"><b>오탐이 나면 반대쪽이 다친다.</b> 「장애」가 들어갔다고 다 대상은 아니다 —
+<b>「장애물 달리기 대회」·「무장애 공간 디자인 공모전」</b>은 누구나 참여하는 행사다.
+이것들이 대상으로 잡히면 표시하지 않은 학생에게서 멀쩡한 프로그램이 사라진다.
+경계 사례를 테스트에 넣어 두었다.</p>
+
 <h3>8.7 배포 환경 검증</h3>
 <table>
 <tr><th style="width:34%">검증 항목</th><th>결과</th></tr>
@@ -1650,23 +1681,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
 <section>
 <h2>11. 부록</h2>
 
-<h3>A. 제출 전 최종 체크리스트</h3>
-<table>
-<tr><th style="width:80%">항목</th><th class="c">확인</th></tr>
-<tr><td>표지에 팀명·팀원 학과·성명·Public GitHub 주소 기입</td><td class="c">☑</td></tr>
-<tr><td>PDF 파일명에 팀명 기입 — <code>시너지_개발보고서.pdf</code></td><td class="c">☑</td></tr>
-<tr><td>이메일 제목에 팀명 기입 <span class="note">(발송 시)</span></td><td class="c">☐</td></tr>
-<tr><td>GitHub 저장소 Public 설정 및 README 실행 방법 작성</td><td class="c">☑</td></tr>
-<tr><td>실제 서비스 URL 확보 (https://mypath-gules.vercel.app)</td><td class="c">☑</td></tr>
-<tr><td>주요 화면 캡처 3~5장 삽입</td><td class="c">☑</td></tr>
-<tr><td>테스트 표의 실제 결과·응답 시간·비용 기입</td><td class="c">☑</td></tr>
-<tr><td>추천 URL의 <code>mjc.ac.kr</code> 도메인·접속 여부 검증</td><td class="c">☑</td></tr>
-<tr><td>단위 테스트 133종 통과 · 배포 게이트 연결</td><td class="c">☑</td></tr>
-<tr><td>저장소 전체 히스토리 API 키 노출 검사 <span class="note">(0건)</span></td><td class="c">☑</td></tr>
-<tr><td>제출처: <b>seahlim@mjc.ac.kr</b> / 마감: 8월 7일 12:00 <span class="note">(발송 시)</span></td><td class="c">☐</td></tr>
-</table>
-
-<h3>B. 실행 방법</h3>
+<h3>A. 실행 방법</h3>
 <pre>■ 그냥 써보기
    https://mypath-gules.vercel.app  ← 설치 불필요 (데모 키는 심사 기간 한정)
 
@@ -1686,7 +1701,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
    dev-test.html          UI 없이 4단계 로직만 실행 (결과·비용·커버리지 확인)
    index.html?mock=1      크레딧을 쓰지 않고 화면만 확인</pre>
 
-<h3>C. 실제 응답 예시</h3>
+<h3>B. 실제 응답 예시</h3>
 <pre>// 1단계 — 요구 역량 (출처는 실제 채용공고)
 {
   "name": "C# 언어 및 Unity 엔진 활용 능력",
@@ -1729,7 +1744,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
 또한 이 실행은 <code>origin: "collected"</code>다 — 실시간 검색이 이 갭을 채우지 못해
 사전 수집 143건에서 보충한 경우이며, 화면에도 “사전 조사 자료” 배지로 구분해 표시된다(6.5 참조).</p>
 
-<h3>D. 참고 링크 및 출처</h3>
+<h3>C. 참고 링크 및 출처</h3>
 <table>
 <tr><th style="width:26%">구분</th><th>주소</th></tr>
 <tr><td>배포 서비스</td><td>https://mypath-gules.vercel.app</td></tr>
@@ -1739,7 +1754,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
 <tr><td>게이트웨이 문서</td><td>https://docs.mindlogic.ai/docs/mjc/gateway/getting-started/overview</td></tr>
 </table>
 
-<h3>E. 화면 캡처</h3>
+<h3>D. 화면 캡처</h3>
 <p class="note">2026-08-07 배포본(<code>https://mypath-gules.vercel.app</code>) 실제 화면이다.
 모형이나 시안이 아니다.</p>
 
@@ -1818,7 +1833,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
 </figure>
 
 <p class="note"><b>넣지 못한 캡처.</b> 4개 관점 평가 패널이 펼쳐진 전체 화면은 지면 관계로 싣지 못했다.
-구성은 <b>6.6</b>과 <b>부록 C의 실제 응답 예시</b>로 갈음한다.</p>
+구성은 <b>6.6</b>과 <b>부록 B의 실제 응답 예시</b>로 갈음한다.</p>
 </section>
 
 </body>

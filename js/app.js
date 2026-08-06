@@ -310,10 +310,20 @@ function goProfile() {
       profile.certificates = partial.certificates;
       profile.skills = partial.skills;
       // ★ traits 를 통째로 갈아끼우면 안 된다.
-      //   수정 폼에 없는 값(supportDisability)이 조용히 사라져서,
-      //   장애학생 지원 대상으로 온보딩한 학생이 프로필을 한 번 저장하는 순간
-      //   해당 프로그램이 전부 안 보이게 된다. 복구 방법은 초기화뿐이다.
-      profile.traits = { ...(profile.traits || {}), activityPreference: partial.activityPreference };
+      //   수정 폼에 없는 값이 조용히 사라진다. 예전에는 supportDisability 가
+      //   그렇게 날아가서, 장애학생 지원 대상으로 온보딩한 학생이 프로필을 한 번
+      //   저장하는 순간 해당 프로그램이 전부 안 보이게 됐다. 복구는 초기화뿐이었다.
+      //
+      //   지금은 수정 폼에도 그 항목이 있으므로 ★폼 값을 받아 쓴다.★
+      //   다만 폼에서 오지 않은 경우(undefined)에는 기존 값을 지켜야 한다 —
+      //   위와 같은 사고를 다시 만들지 않기 위해서다.
+      profile.traits = {
+        ...(profile.traits || {}),
+        activityPreference: partial.activityPreference,
+        supportDisability: partial.supportDisability === undefined
+          ? profile.traits?.supportDisability === true
+          : partial.supportDisability === true,
+      };
       saveProfile();
       goProfile(); // 저장 후 뷰 모드로 다시 그린다 (수정된 값 즉시 반영)
     },

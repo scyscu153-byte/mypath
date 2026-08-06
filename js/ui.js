@@ -983,6 +983,18 @@ function renderProfileView(mount, profile, handlers) {
         <div class="mt-1">${chipList(profile.skills)}</div>
       </div>
 
+      ${profile.traits?.supportDisability === true ? `
+      <!-- ★켜져 있을 때만 보여준다.★ 해당하지 않는 학생에게 "장애학생 지원 대상: 아니요"를
+           띄울 이유가 없다. 켠 사람에게는 ★지금 켜져 있다는 것★과
+           ★어디서 끄는지★가 보여야 한다 — 안 보이면 고칠 수도 없다. -->
+      <div>
+        <span class="text-sm text-secondary">지원 대상</span>
+        <p class="mt-1 text-sm text-maintext">
+          장애학생 지원 대상
+          <span class="text-secondary">— 관련 프로그램도 함께 찾습니다. 「프로필 수정」에서 바꿀 수 있어요.</span>
+        </p>
+      </div>` : ''}
+
       <div>
         <span class="text-sm text-secondary">완료한 활동 (${done.length})</span>
         ${
@@ -1293,6 +1305,10 @@ function confirmNuke(mount, handlers) {
 function renderProfileEdit(mount, profile, handlers) {
   const { direct, earned } = splitSkills(profile.skills);
   const pref = profile.traits?.activityPreference || null;
+  // ★온보딩에만 있고 여기엔 없었다.★ 그래서 처음에 체크하지 않은 학생은
+  //   전체 초기화 말고는 켤 방법이 없었고, 체크한 학생은 끌 방법이 없었다.
+  //   정작 이 기능이 필요한 사람에게 ★한 번 지나가면 못 돌아오는 문★이었다.
+  const supportDisability = profile.traits?.supportDisability === true;
 
   mount.innerHTML = `
     <h2 class="text-xl font-bold mb-6">프로필 수정</h2>
@@ -1347,6 +1363,22 @@ function renderProfileEdit(mount, profile, handlers) {
       }
 
       <fieldset class="pt-2">
+        <legend class="text-sm text-maintext mb-2">
+          지원 대상 <span class="text-secondary">(선택 — 해당하면 관련 프로그램도 함께 찾아드려요)</span>
+        </legend>
+        <label class="flex items-start gap-2">
+          <input name="supportDisability" type="checkbox" class="mt-1 rounded bg-white border-line" ${supportDisability ? 'checked' : ''} />
+          <span class="text-sm text-maintext">
+            장애학생 지원 대상입니다
+            <span class="block text-xs text-secondary">
+              체크하지 않으면 장애학생 대상 프로그램은 추천에서 제외합니다.
+              <strong>이 선택 자체는</strong> 이 브라우저에만 저장되며 서버로 전송되지 않습니다.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
+      <fieldset class="pt-2">
         <legend class="text-sm text-maintext mb-2">활동 스타일 <span class="text-secondary">(선택)</span></legend>
         <div class="flex gap-4 text-sm">
           <label class="flex items-center gap-1.5">
@@ -1381,6 +1413,7 @@ function renderProfileEdit(mount, profile, handlers) {
       // 직접 입력 기술 + 프로그램 이수 기술(그대로 보존)을 합친다
       skills: [...toList(fd.get('skills')), ...earned],
       activityPreference: fd.get('activityPreference') || null,
+      supportDisability: fd.get('supportDisability') === 'on',
     });
   });
 

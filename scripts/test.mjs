@@ -28,6 +28,8 @@ const {
 } = await import('../js/pipeline.js');
 // 정규 학사과정 판별은 fallback.js 한 곳에만 있다 (두 곳에 적으면 어긋난다)
 const { isCurriculum } = await import('../js/fallback.js');
+// 장애학생 대상 판별 — 오탐이 나면 비대상 학생에게서 멀쩡한 프로그램이 사라진다
+const { isDisabilitySupportProgram } = await import('../js/pipeline.js');
 // 교내/교외를 가르는 근거. 교외 활동 기능이 이 판정 하나에 얹혀 있다.
 const { isAllowedSource } = await import('../js/gateway.js');
 const P = await import('../js/profile.js');
@@ -459,6 +461,58 @@ const asCampus = (m) => (m.scope === 'external' ? 'external' : 'campus');
 t('scope 가 없으면 교내로 본다', asCampus({}) === 'campus');
 t('scope:external 은 교외로 본다', asCampus({ scope: 'external' }) === 'external');
 t('엉뚱한 scope 값은 교내로 떨어진다', asCampus({ scope: 'weird' }) === 'campus');
+
+// ─────────────────────────────────────────────
+//  11. 장애학생 지원 대상 — 켠 상태가 살아남는가
+//
+//  이 항목은 한 번 잘못 다루면 ★복구가 초기화뿐★이라 특히 위험하다.
+//  실제로 전에 프로필 수정이 traits 를 통째로 갈아끼워서, 대상 학생이
+//  프로필을 한 번 저장하는 순간 관련 프로그램이 전부 사라졌다.
+//  게다가 수정 폼에 항목 자체가 없어서 다시 켤 방법도 없었다.
+// ─────────────────────────────────────────────
+describe('11. 장애학생 지원 대상');
+
+t('대상 프로그램을 대상으로 판정한다',
+  isDisabilitySupportProgram({ programTitle: '장애학생 도우미 프로그램', summary: '' }));
+
+t('띄어쓴 표기도 잡는다',
+  isDisabilitySupportProgram({ programTitle: '장애 대학생 진로캠프', summary: '' }));
+
+// ★"장애"가 들어갔다고 다 대상이 아니다.★ 이걸 막지 못하면
+//   비대상 학생에게서 멀쩡한 공모전이 사라진다.
+t('「장애물」은 대상이 아니다',
+  !isDisabilitySupportProgram({ programTitle: '장애물 달리기 대회', summary: '' }));
+
+t('「무장애」 디자인 공모전은 대상이 아니다',
+  !isDisabilitySupportProgram({ programTitle: '무장애 공간 디자인 공모전', summary: '' }));
+
+t('무관한 프로그램은 대상이 아니다',
+  !isDisabilitySupportProgram({ programTitle: 'AI 코딩 부트캠프', summary: '' }));
+
+// ── traits 병합 ──
+// 수정 폼이 보내지 않은 값(undefined)은 ★기존 값을 지켜야 한다.★
+const mergeTraits = (prev, partial) => ({
+  ...(prev || {}),
+  activityPreference: partial.activityPreference,
+  supportDisability: partial.supportDisability === undefined
+    ? prev?.supportDisability === true
+    : partial.supportDisability === true,
+});
+
+t('수정 폼이 값을 안 보내면 켠 상태가 유지된다',
+  mergeTraits({ supportDisability: true }, { activityPreference: 'team' }).supportDisability === true);
+
+t('수정 폼에서 끄면 꺼진다',
+  mergeTraits({ supportDisability: true },
+    { activityPreference: null, supportDisability: false }).supportDisability === false);
+
+t('수정 폼에서 켜면 켜진다',
+  mergeTraits({ supportDisability: false },
+    { activityPreference: null, supportDisability: true }).supportDisability === true);
+
+t('활동 스타일을 바꿔도 지원 대상은 안 날아간다',
+  mergeTraits({ supportDisability: true, activityPreference: 'solo' },
+    { activityPreference: 'team', supportDisability: true }).supportDisability === true);
 
 // ─────────────────────────────────────────────
 //  결과
