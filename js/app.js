@@ -60,9 +60,71 @@ function saveProfile() {
 //  화면 전환
 // ─────────────────────────────────────────────
 
+/**
+ * ★화면 전환과 브라우저 방문 기록을 함께 관리한다.★
+ *
+ * 전에는 화면만 바꾸고 기록을 남기지 않았다. 그래서
+ *   - 브라우저 ★뒤로가기★를 누르면 앱 안에서 한 칸 돌아가는 게 아니라 ★사이트를 나갔다.★
+ *   - 로고를 눌러도 아무 일도 없었다.
+ *   - 프로필을 열면 되돌아갈 방법이 화면 안 버튼뿐이었다.
+ * 보통 사이트라면 당연히 되는 것들이라, 안 되면 미완성으로 읽힌다.
+ *
+ * 진행 화면(progress)은 기록에 남기지 않는다 — 분석 중 상태로 "돌아가는" 것은 의미가 없다.
+ */
+let currentScreen = null;
+let suppressPush = false;   // 뒤로가기로 복원 중일 때는 기록을 새로 쌓지 않는다
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach((el) => el.removeAttribute('data-active'));
   document.getElementById(`screen-${id}`).setAttribute('data-active', '');
+  currentScreen = id;
+  markActiveNav();
+
+  if (suppressPush || id === 'progress') return;
+  // 같은 화면을 연달아 쌓지 않는다 (프로필 저장 후 다시 그리는 경우 등)
+  if (history.state?.screen === id) return;
+  history.pushState({ screen: id }, '', location.href);
+}
+
+/** 뒤로/앞으로 눌렀을 때 그 화면을 다시 그린다 */
+function restoreScreen(id) {
+  suppressPush = true;
+  try {
+    if (id === 'report' && currentMatches.length) goReport();
+    else if (id === 'profile' && profile) goProfile();
+    else if (id === 'target' && profile) goTarget();
+    else if (id === 'onboarding' && !profile) goOnboarding();
+    // 되돌릴 수 없는 상태(새로고침으로 결과가 사라진 경우 등)면 홈으로
+    else if (profile) goTarget();
+    else goOnboarding();
+  } finally {
+    suppressPush = false;
+  }
+}
+
+window.addEventListener('popstate', (e) => {
+  // 분석 중에 뒤로가기를 누르면 그 실행의 결과는 버린다.
+  // 안 그러면 나중에 도착한 결과가 화면을 덮어쓴다.
+  if (isRunning()) { runToken += 1; running = false; }
+  restoreScreen(e.state?.screen || (profile ? 'target' : 'onboarding'));
+});
+
+/** 지금 있는 화면을 헤더에 표시한다 — 눌러도 아무 일 없는 버튼처럼 보이지 않게 */
+function markActiveNav() {
+  const chip = document.getElementById('nav-profile-chip');
+  if (!chip) return;
+  const on = currentScreen === 'profile';
+  chip.classList.toggle('ring-2', on);
+  chip.classList.toggle('ring-mjcblue/40', on);
+  chip.setAttribute('aria-current', on ? 'page' : 'false');
+  chip.title = on ? '눌러서 이전 화면으로 돌아가기' : '내 프로필 보기';
+}
+
+/** 로고를 눌렀을 때 — 보통 사이트의 "홈" */
+function goHome() {
+  if (isRunning()) return;
+  if (profile) goTarget();
+  else goOnboarding();
 }
 
 function mountOf(id) {
@@ -328,6 +390,13 @@ function injectHeaderControls() {
     (creditBadge || corner).insertAdjacentElement(creditBadge ? 'beforebegin' : 'afterbegin', keyBtn);
   }
 
+  // 로고 → 홈 (보통 사이트에서 당연히 되는 것)
+  const home = document.getElementById('nav-home');
+  if (home && !home.dataset.wired) {
+    home.dataset.wired = '1';
+    home.addEventListener('click', goHome);
+  }
+
   refreshProfileChip();
 }
 
@@ -354,7 +423,15 @@ function refreshProfileChip() {
     chip.addEventListener('click', () => {
       // 분석 중에는 막는다 — 나갔다가 결과가 도착하면 화면이 갑자기 튄다.
       if (isRunning()) return;
-      if (profile) goProfile();
+      if (!profile) return;
+      // ★토글로 동작한다.★ 프로필을 보고 있을 때 다시 누르면 원래 보던 화면으로 돌아간다.
+      //   같은 버튼을 눌렀는데 아무 일도 안 일어나면 고장 난 것처럼 보인다.
+      if (currentScreen === 'profile') {
+        if (currentMatches.length) goReport();
+        else goTarget();
+        return;
+      }
+      goProfile();
     });
     slot.appendChild(chip);
   }
@@ -362,6 +439,7 @@ function refreshProfileChip() {
     <span class="w-6 h-6 rounded-full bg-mjcblue text-white flex items-center justify-center shrink-0">${icon('user', 'w-3.5 h-3.5')}</span>
     <span class="text-xs font-medium text-mjcblue">${esc(profile.department)} · ${profile.grade}학년</span>
   `;
+  markActiveNav();
 }
 
 function keyLabel() {
@@ -475,8 +553,12 @@ function openKeyPanel() {
 injectHeaderControls();
 updateCreditBadge();
 
-if (profile) {
-  goTarget();
-} else {
-  goOnboarding();
-}
+// 첫 화면은 기록을 새로 쌓지 않고 ★현재 항목을 대체★한다.
+// 안 그러면 뒤로가기를 한 번 눌렀을 때 같은 화면에 머물러 "안 먹는다"고 느낀다.
+const firstScreen = profile ? 'target' : 'onboarding';
+history.replaceState({ screen: firstScreen }, '', location.href);
+
+suppressPush = true;
+if (profile) goTarget();
+else goOnboarding();
+suppressPush = false;

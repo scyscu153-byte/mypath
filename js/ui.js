@@ -1149,9 +1149,15 @@ function confirmNuke(mount, handlers) {
     </div>`;
   document.body.appendChild(el);
 
-  const close = () => el.remove();
+  const close = () => { el.remove(); document.removeEventListener('keydown', onEsc); };
+  // ESC 로도 닫힌다 — 키 패널은 되는데 여기만 안 되면 일관성이 없다.
+  function onEsc(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onEsc);
+
   el.querySelector('#nuke-cancel').addEventListener('click', close);
   el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  // 위험한 동작이므로 처음 초점은 ★취소★에 둔다. Enter 를 무심코 눌러도 지워지지 않게.
+  el.querySelector('#nuke-cancel').focus();
   el.querySelector('#nuke-go').addEventListener('click', () => {
     close();
     const n = clearAllStoredData();
