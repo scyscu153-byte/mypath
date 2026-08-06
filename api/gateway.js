@@ -23,13 +23,19 @@ const BASE_URL = process.env.FACTCHAT_BASE_URL
  * 허용 모델 화이트리스트.
  * 프록시가 열려 있으므로, 비싼 모델을 임의로 호출당하지 않도록 제한한다.
  * (claude-opus-5 는 1회 52.94 크레딧 — 의도적으로 제외)
+ *
+ * ⚠️ js/gateway.js 의 ROUTE / PERSONA_MODEL 과 반드시 같이 고쳐야 한다.
+ *    여기에 없는 모델을 쓰면 데모 모드에서만 400 이 난다.
+ *    본인 키 경로는 게이트웨이를 직접 부르므로 이 검사를 지나지 않아,
+ *    로컬에서 본인 키로 테스트하면 이 불일치가 드러나지 않는다.
  */
 const ALLOWED_MODELS = new Set([
-  'gpt-5.4-mini',      //  1.99 크레딧 / 2.8초  — 주력
-  'gpt-5.4-nano',      //  더 저렴 — 작업 분류용
-  'gemini-3.5-flash',  //  7.90 크레딧 / 8.0초
-  'sonar-pro',         // 21~35 크레딧 / 5~35초 — 실시간 검색
-  'claude-sonnet-5',   //  페르소나 평가용
+  'solar-pro2',            //  0.15 크레딧 / 2.2초  — 시장 트렌드 관점 (Upstage)
+  'gemini-3.5-flash-lite', //  0.33 크레딧 / 1.8초  — 비용·시간 관점 (Google)
+  'gpt-5.4-nano',          //  1.0  크레딧 / 2.0초  — 작업 분류용
+  'gpt-5.4-mini',          //  1.99 크레딧 / 2.8초  — 갭 분석 · 실무 관점 (OpenAI)
+  'claude-sonnet-5',       //  8.0  크레딧 / 6.0초  — 학업 연계 관점 (Anthropic)
+  'sonar-pro',             // 21~35 크레딧 / 5~35초 — 실시간 검색
 ]);
 
 /** 응답 길이 상한 — 크레딧 폭주 방지 */
@@ -37,6 +43,67 @@ const MAX_TOKENS_CAP = 4000;
 
 /** 게이트웨이 자체 응답 대기 상한 (ms). sonar-pro 실측 최대 35초. */
 const UPSTREAM_TIMEOUT_MS = 55_000;
+
+// ─────────────────────────────────────────────
+//  크레딧 방어 — 이 주소는 공개다
+//
+//  저장소가 Public 이므로 /api/gateway 주소도 공개다.
+//  데모 키는 학생 한 명에게 배정된 월 10,000 크레딧에서 나가고,
+//  파이프라인 1회 실행이 약 68크레딧이다 (= 약 146회면 소진).
+//  막지 않으면 URL 이 퍼진 날 하루로 끝난다.
+//
+//  ⚠️ 이 카운터는 서버 인스턴스 메모리에 있다. 인스턴스가 재활용되면 초기화된다.
+//     완전한 방어가 아니라 ★비용을 올리는 속도 방지턱★이다.
+//     정확한 총량 제어가 필요하면 외부 저장소가 필요하다 — 대회 범위를 넘는다.
+// ─────────────────────────────────────────────
+
+/** 파이프라인 1회 = 7호출. 한 사람이 10분에 3회 정도는 돌려볼 수 있게 둔다. */
+const PER_IP_LIMIT = 25;
+const PER_IP_WINDOW_MS = 10 * 60 * 1000;
+
+/** 전체 상한 — 한 시간에 파이프라인 약 25회분 */
+const GLOBAL_LIMIT = 180;
+const GLOBAL_WINDOW_MS = 60 * 60 * 1000;
+
+const ipHits = new Map();   // ip -> number[] (호출 시각)
+let globalHits = [];        // number[]
+
+function withinWindow(list, windowMs, now) {
+  return list.filter((t) => now - t < windowMs);
+}
+
+/** @returns {{ok: true} | {ok: false, scope: string, retryAfter: number}} */
+function checkRate(ip) {
+  const now = Date.now();
+
+  globalHits = withinWindow(globalHits, GLOBAL_WINDOW_MS, now);
+  if (globalHits.length >= GLOBAL_LIMIT) {
+    return { ok: false, scope: 'global', retryAfter: Math.ceil(GLOBAL_WINDOW_MS / 1000) };
+  }
+
+  const mine = withinWindow(ipHits.get(ip) || [], PER_IP_WINDOW_MS, now);
+  if (mine.length >= PER_IP_LIMIT) {
+    return { ok: false, scope: 'ip', retryAfter: Math.ceil(PER_IP_WINDOW_MS / 1000) };
+  }
+
+  mine.push(now);
+  ipHits.set(ip, mine);
+  globalHits.push(now);
+
+  // Map 이 무한정 자라지 않게 가끔 청소한다
+  if (ipHits.size > 500) {
+    for (const [k, v] of ipHits) {
+      if (withinWindow(v, PER_IP_WINDOW_MS, now).length === 0) ipHits.delete(k);
+    }
+  }
+  return { ok: true };
+}
+
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd) return fwd.split(',')[0].trim();
+  return req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -54,6 +121,19 @@ export default async function handler(req, res) {
       error: '데모 모드가 비활성화되어 있습니다',
       hint: '팩트챗(mjc.factchat.bot) → API Gateway 에서 본인 키를 발급받아 입력하세요. '
           + '입력하신 키는 저희 서버를 거치지 않고 브라우저에서 직접 사용됩니다.',
+    });
+  }
+
+  // ── 1-2. 사용량 제한 ────────────────────────
+  const rate = checkRate(clientIp(req));
+  if (!rate.ok) {
+    res.setHeader('Retry-After', String(rate.retryAfter));
+    return res.status(429).json({
+      error: rate.scope === 'global'
+        ? '데모 모드 사용량이 한도에 도달했습니다'
+        : '요청이 너무 잦습니다',
+      hint: '본인의 팩트챗 키를 입력하면 제한 없이 사용할 수 있습니다. '
+          + '입력한 키는 저희 서버를 거치지 않고 브라우저에서 직접 사용됩니다.',
     });
   }
 

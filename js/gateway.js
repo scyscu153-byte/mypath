@@ -253,7 +253,11 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
     try {
       const data = await send(payload);
-      if (data.__error) throw new Error(data.__error);
+      if (data.__error) {
+        const e = new Error(data.__hint ? `${data.__error} — ${data.__hint}` : data.__error);
+        e.noRetry = Boolean(data.__noRetry);
+        throw e;
+      }
 
       const msg = data.choices?.[0]?.message ?? {};
       const result = {
@@ -267,6 +271,8 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
       return { ...result, cached: false };
     } catch (err) {
       lastError = err;
+      // 사용량 한도·잘못된 요청은 다시 보내도 같은 답이 온다. 즉시 포기한다.
+      if (err.noRetry) throw err;
       // 마지막 시도가 아니면 잠깐 쉬고 재시도
       if (attempt < MAX_RETRY) await sleep(800 * (attempt + 1));
     }
@@ -302,7 +308,15 @@ async function send(payload) {
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) return { __error: data.error || `HTTP ${res.status}` };
+  if (!res.ok) {
+    return {
+      __error: data.error || `HTTP ${res.status}`,
+      __hint: data.hint,
+      // 사용량 한도·잘못된 요청은 다시 보내도 결과가 같다.
+      // 재시도하면 시간만 버리고 서버를 더 때린다.
+      __noRetry: res.status === 429 || res.status === 400 || res.status === 401,
+    };
+  }
   return data;
 }
 
