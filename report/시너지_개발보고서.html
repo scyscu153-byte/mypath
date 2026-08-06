@@ -186,6 +186,20 @@
   ol.toc .t { font-weight: 600; font-size: 11pt; white-space: nowrap; }
   ol.toc .d { color: var(--gray); font-size: 9.2pt; text-align: right; }
 
+  /* 「3분만 보신다면」 — 상자를 씌우면 2쪽을 넘겨서 표만 둔다 */
+  h3.guide-h { font-size: 10.8pt; margin: 6mm 0 2mm; color: var(--blue-d); page-break-after: avoid; }
+  table.guide { margin: 0 0 2mm; font-size: 9.2pt; }
+  table.guide td { padding: 1.9mm 3mm; }
+
+  /* ★목차 전용 쪽.★ 한 쪽을 통째로 쓰므로 위아래로 숨을 틔운다.
+     항목 간격도 조금 넓혀서 스물 몇 줄이 한 화면에 편하게 들어오게 한다. */
+  h3.toc-head {
+    font-size: 15pt; margin: 14mm 0 8mm; padding-bottom: 3mm;
+    border-bottom: 2px solid var(--blue); color: var(--navy);
+  }
+  h3.toc-head + ol.toc li { padding: 3.4mm 0; }
+  h3.toc-head + ol.toc { margin-top: 0; }
+
   .note { font-size: 9pt; color: var(--gray); }
   .chk { list-style: none; padding-left: 0; }
   .chk li::before { content: "☐  "; color: var(--blue); }
@@ -279,17 +293,24 @@
 <p class="note">실측 수치는 2026-08-06 ~ 08-07 실제 실행 로그와 크레딧 잔량 API로 측정했다.
 가정 계산이 섞인 곳은 산식을 함께 적었다.</p>
 
-<div class="callout">
-<span class="lbl">3분만 보신다면 — 이 네 곳입니다</span>
-<table style="margin:0">
-<tr><td style="width:52%">10번 돌리면 몇 번 되는가</td><td><b>8.5.4</b> 성공률 실측 (1차 6/10 → 원인 특정 → 2차 <b>9/10</b>)</td></tr>
+<h3 class="guide-h">3분만 보신다면 — 이 네 곳입니다</h3>
+<table class="guide">
+<tr><td style="width:50%">10번 돌리면 몇 번 되는가</td><td><b>8.5.4</b> 성공률 실측 (1차 6/10 → 원인 특정 → 2차 <b>9/10</b>)</td></tr>
 <tr><td>어느 AI를 왜 거기에 썼는가</td><td><b>7.4</b> 모델 6종을 같은 작업으로 재고 골랐다 (<b>82% 절감</b>)</td></tr>
 <tr><td>걸러내지 못하는 것은 무엇인가</td><td><b>8.6.4~8.6.5</b> 차단율 <b>92%</b>, 남은 7.6%와 그 이유</td></tr>
 <tr><td>사람이 늘면 비용은 어떻게 되는가</td><td><b>9.4</b> 학생마다 크레딧이 이미 배정돼 있다</td></tr>
 </table>
-</div>
 
-<h3>목차</h3>
+</section>
+
+<!-- ══════════════════ 목차 ══════════════════
+     ★목차는 자기 쪽을 통째로 쓴다.★
+     앞의 요약·「3분만 보신다면」과 같은 쪽에 붙어 있으면
+     목차가 어디서 시작하는지 눈에 안 들어온다. 54쪽 문서에서
+     목차는 길잡이라, 펼쳤을 때 그것만 보이는 편이 낫다.
+     ══════════════════════════════════════════ -->
+<section>
+<h3 class="toc-head">목차</h3>
 <ol class="toc">
   <li><span class="t">프로젝트 개요</span><span class="d">무엇을 왜 만들었는가</span></li>
   <li><span class="t">문제 정의</span><span class="d">교내 프로그램 143건이 10개 서브도메인에 흩어져 있다</span></li>
