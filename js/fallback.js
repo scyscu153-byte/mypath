@@ -2138,24 +2138,93 @@ export const FALLBACK_COLLECTED_AT = '2026-08-06';
  * @param {string[]} gapNames  부족한 역량 이름들
  * @param {number}   limit
  */
-export function findFallback(gapNames = [], limit = 8) {
-  const needles = gapNames
-    .join(' ')
-    .toLowerCase()
-    .split(/[\s,·/()]+/)
-    .filter((w) => w.length >= 2);
+/**
+ * 어느 프로그램에나 들어 있어 변별력이 없는 낱말.
+ *
+ * ★ 이게 없으면 무관한 프로그램이 "검증된 데이터"로 추천된다.
+ *   실제 사례: 치위생과 학생의 "치석제거 실습" 갭에
+ *   "실습" 한 낱말이 걸려 「AI 코딩 배우기」가 추천됐다.
+ *   화면에는 파란 "수집 데이터" 배지까지 붙어 신뢰도가 얹힌다.
+ *   ★없는 것을 없다고 하는 것보다, 틀린 것을 자신 있게 말하는 게 훨씬 나쁘다.★
+ */
+const STOP_WORDS = new Set([
+  '실습', '실무', '경험', '교육', '과정', '능력', '역량', '이해', '활용', '관리',
+  '지원', '기초', '기본', '심화', '전문', '및', '등', '관련', '사용', '수행',
+  '지식', '기술', '분야', '업무', '작성', '학습', '프로그램', '참여', '취득',
+]);
 
-  const scored = FALLBACK_PROGRAMS.map((p) => {
-    const hay = [p.programTitle, p.summary, ...(p.skillKeywords || [])]
+/** 프로그램 하나를 검색 대상 문자열로 만든다 */
+function haystackOf(p) {
+  return [p.programTitle, p.summary, ...(p.skillKeywords || [])].join(' ').toLowerCase();
+}
+
+/** 미리 계산해두는 검색 색인 (143건 × 1회) */
+const HAYSTACKS = FALLBACK_PROGRAMS.map(haystackOf);
+
+/**
+ * 낱말이 몇 건에 등장하는지 — ★희소성★ 판단에 쓴다.
+ * "unity"는 몇 건에만 있어 변별력이 크고, "프로젝트"는 수십 건에 있어 거의 없다.
+ */
+function docFreq(word) {
+  let n = 0;
+  for (const h of HAYSTACKS) if (h.includes(word)) n++;
+  return n;
+}
+
+/** 이 건수 이하로 등장하면 "그 낱말 하나만 맞아도 인정"할 만큼 변별력이 있다고 본다 */
+const RARE_MAX = 12;
+
+/**
+ * 키워드로 폴백 프로그램을 찾는다.
+ *
+ * 규칙
+ *   ① 변별력 없는 낱말(STOP_WORDS)은 검색어에서 뺀다
+ *   ② 남은 낱말을 ★희소성으로 가중★한다
+ *        희소한 낱말(12건 이하 등장) = 2점  — 하나만 맞아도 인정
+ *        흔한 낱말                  = 1점  — 두 개 이상 맞아야 인정
+ *   ③ 2점 미만이면 억지로 채우지 않고 뺀다
+ *
+ * 이렇게 하면
+ *   "Unity 엔진 활용 능력"  → unity(희소) 하나로 실감콘텐츠 과정이 잡히고
+ *   "치석제거 실습"         → 치석제거(0건)·실습(불용어) → 0건으로 정직하게 비운다
+ *
+ * @param {string[]} gapNames  부족한 역량 이름들
+ * @param {number}   limit
+ */
+export function findFallback(gapNames = [], limit = 8) {
+  const needles = [...new Set(
+    gapNames
       .join(' ')
-      .toLowerCase();
+      .toLowerCase()
+      .split(/[\s,·/()]+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 2 && !STOP_WORDS.has(w)),
+  )];
+
+  if (!needles.length) return [];
+
+  const weighted = needles
+    .map((n) => ({ n, df: docFreq(n) }))
+    .filter((x) => x.df > 0)                       // 아무 데도 없는 낱말은 무시
+    .map((x) => ({ ...x, w: x.df <= RARE_MAX ? 2 : 1 }));
+
+  // 쓸 만한 낱말이 하나도 없으면 = 이 갭을 메울 데이터가 우리에게 없다는 뜻
+  if (!weighted.length) return [];
+
+  // 기준은 2점이지만, 애초에 2점이 나올 수 없는 질의(흔한 낱말 하나뿐)라면
+  // 그 낱말이 맞는 것만으로 인정한다. 예: "포트폴리오"(16건), "AI 활용 능력"→"ai"(34건)
+  const maxPossible = weighted.reduce((s, x) => s + x.w, 0);
+  const threshold = Math.min(2, maxPossible);
+
+  const scored = FALLBACK_PROGRAMS.map((p, i) => {
+    const hay = HAYSTACKS[i];
     let score = 0;
-    for (const n of needles) if (hay.includes(n)) score += 1;
+    for (const { n, w } of weighted) if (hay.includes(n)) score += w;
     return { p, score };
   });
 
   return scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.score >= threshold)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.p);
