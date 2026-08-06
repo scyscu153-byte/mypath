@@ -21,8 +21,9 @@
 
 const ALLOWED_DOMAIN = 'mjc.ac.kr';
 
-/** 한 URL 당 대기 상한. 시연 중 전체가 느려지면 안 된다. */
-const FETCH_TIMEOUT_MS = 6000;
+/** 한 URL 당 대기 상한. 시연 중 전체가 느려지면 안 된다.
+ *  학교 게시판 한 페이지가 350KB 안팎이라 여유를 둔다. */
+const FETCH_TIMEOUT_MS = 9000;
 
 /** 한 번에 검증할 수 있는 최대 개수 */
 const MAX_ITEMS = 20;
@@ -140,8 +141,15 @@ function isAllowedHost(host) {
   return h === ALLOWED_DOMAIN || h.endsWith(`.${ALLOWED_DOMAIN}`);
 }
 
-/** 본문 전체를 읽지 않는다 — 앞부분이면 제목 확인에 충분하고, 느린 페이지에서 시간을 아낀다 */
-async function readSome(res, limitBytes = 300_000) {
+/**
+ * 본문을 읽되 상한을 둔다.
+ *
+ * ★ 처음엔 300KB 로 잡았다가 전부 unverified 가 나왔다.
+ *   mjc.ac.kr 게시판 페이지가 349KB 이고, 정작 게시글 제목은 그 뒤쪽에 있다.
+ *   머리말·네비게이션 HTML 이 앞부분을 다 차지한다.
+ *   상한이 본문에 닿지 못하면 "제목을 확인하지 못함"이 되어버린다.
+ */
+async function readSome(res, limitBytes = 1_500_000) {
   const reader = res.body?.getReader?.();
   if (!reader) return await res.text();
 
