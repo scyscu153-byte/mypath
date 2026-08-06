@@ -674,7 +674,7 @@ function programCard(match, index = 0) {
 
       <div class="mt-4 pt-4 border-t border-line">
         <p class="text-xs font-semibold text-secondary mb-2">4개 관점 코멘트</p>
-        ${personaGrid(match.personaScores)}
+        ${personaGrid(match.personaScores || {})}
       </div>
 
       <div class="mt-4 flex items-center justify-between gap-3">
@@ -1024,9 +1024,18 @@ function renderProfileView(mount, profile, handlers) {
               ${saved.map((s) => `
                 <li data-saved-title="${esc(s.programTitle)}"
                     class="rounded-lg border border-line bg-white p-3">
-                  <p class="text-sm font-medium text-maintext break-words">${esc(s.programTitle)}</p>
+                  <p class="text-sm font-medium text-maintext break-words">
+                    ${s.scope === 'external'
+                      // ★결과 화면에서는 구역이 갈라 주지만 여기서는 한 목록이다.★
+                      //   표시가 없으면 학교 밖 항목이 교내인 척한다.
+                      ? '<span class="inline-block align-middle mr-1.5 px-1.5 py-0.5 rounded bg-navy/10 text-navy text-[10px] font-medium">교외</span>'
+                      : ''}${esc(s.programTitle)}
+                  </p>
                   ${s.summary ? `<p class="text-xs text-secondary mt-0.5 break-words">${esc(s.summary)}</p>` : ''}
-                  <p class="text-xs text-secondary mt-1">채우려던 역량: ${esc(s.gapSkill)}</p>
+                  <p class="text-xs text-secondary mt-1">채우려던 역량: ${esc(s.gapSkill)}${
+                    s.scope === 'external'
+                      ? ` · <span class="text-secondary">학교 밖 · 출처 미검증${s.host ? ` · 주관 ${esc(s.host)}` : ''}</span>`
+                      : ''}</p>
                   <div class="flex items-center justify-between gap-3 mt-2">
                     <label class="flex items-center gap-2 text-sm text-maintext">
                       <input type="checkbox" class="saved-complete rounded bg-white border-line" />

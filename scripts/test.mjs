@@ -515,6 +515,98 @@ t('활동 스타일을 바꿔도 지원 대상은 안 날아간다',
     { activityPreference: 'team', supportDisability: true }).supportDisability === true);
 
 // ─────────────────────────────────────────────
+//  12. 안전장치가 진짜를 죽인 다섯 번째 — 전수 점검에서 잡았다
+//
+//  낱말 검사(CLOSED_KEYWORDS)는 ★날짜를 모를 때 쓰는 어림짐작★인데,
+//  그 분기가 "미래 마감이면 open" 검사보다 앞에 있었다.
+//  9월 30일이 마감인 프로그램이 요약에 「신청 마감 2026-09-30」이라고
+//  적혀 있다는 이유로 closed 가 됐다 — 어림짐작이 확인된 사실을 이겼다.
+//
+//  교외 검색에서 특히 잘 터진다. 프롬프트가 "공모전은 마감이 곧 전부다"라고
+//  각인시켜 놔서 요약에 「마감」이 들어올 확률이 높고, 3~4건만 뽑기 때문이다.
+// ─────────────────────────────────────────────
+describe('12. 미래 날짜가 낱말보다 우선한다');
+
+t('요약에 「마감」이 있어도 마감일이 미래면 open',
+  j({ summary: '신청 마감 2026-09-30', applicationEndAt: '2026-09-30' }).availability === 'open');
+
+t('「완료」가 있어도 마감일이 미래면 open',
+  j({ summary: '수강 완료 시 수료증 발급', applicationEndAt: '2026-09-30' }).availability === 'open');
+
+t('신청 시작이 미래면 낱말이 있어도 upcoming',
+  j({ summary: '마감 임박', applicationStartAt: '2026-09-01' }).availability === 'upcoming');
+
+t('행사 종료일이 미래면 낱말이 있어도 죽지 않는다',
+  j({ summary: '결과 발표 예정', eventEndAt: '2026-12-01' }).availability !== 'closed');
+
+// ★반대쪽도 지켜야 한다★ — 날짜가 없으면 낱말이 여전히 일한다
+t('미래 날짜가 없으면 종료 표현은 그대로 closed',
+  j({ programTitle: '2025 경진대회 수상작 발표' }).availability === 'closed');
+
+t('과거 마감일은 여전히 closed',
+  j({ summary: '마감', applicationEndAt: '2026-07-01' }).availability === 'closed');
+
+// ── 지난 연도 표기를 손으로 적지 않는다 ──
+// 전에는 '2024학년도'·'2025학년도'만 목록에 있어서 2022·2023 이 통과했고,
+// 요약에 「상시」가 있으면 ONGOING 분기까지 내려가 「상시 모집 중」으로 떴다.
+// 실제로 보고서 대표 캡처에 그 상태가 찍혀 있었다.
+t('2022학년도 + 상시 는 closed (하드코딩 목록에 없던 연도)',
+  j({ programTitle: '2022학년도 온라인강좌', summary: '상시 제공', postedAt: '2022-03-09' })
+    .availability === 'closed');
+
+t('2023학년도도 closed',
+  j({ programTitle: '2023학년도 프로그램', summary: '상시 운영' }).availability === 'closed');
+
+t('올해(2026학년도) 상시 프로그램은 살아남는다',
+  j({ programTitle: '2026학년도 프로그램', summary: '연중 상시 운영' }).availability === 'ongoing');
+
+t('연도 없는 상시 프로그램도 살아남는다',
+  j({ programTitle: '명지튜터링', summary: '연중 상시 운영' }).availability === 'ongoing');
+
+// ─────────────────────────────────────────────
+//  13. 담아두면 교외가 교내인 척하지 않는가
+//
+//  결과 화면은 구역을 나눠 보여주지만, 담아두면 프로필의 한 목록에
+//  교내와 나란히 놓인다. ★그때는 구역 제목이 따라오지 않는다.★
+// ─────────────────────────────────────────────
+describe('13. 담아두기가 교내/교외를 보존하는가');
+
+const extMatch = {
+  programTitle: '○○ 공모전', gapSkill: 'Unity', summary: 's',
+  sourceUrl: 'https://www.contest.co.kr/1', sourceDomain: 'www.contest.co.kr',
+  scope: 'external', host: '한국콘텐츠진흥원', availability: 'open',
+};
+const campusMatch = {
+  programTitle: '교내 특강', gapSkill: 'C#', summary: 's',
+  sourceUrl: 'https://cls.mjc.ac.kr/1', sourceDomain: 'cls.mjc.ac.kr', availability: 'open',
+};
+
+P.saveProfile(P.emptyProfile());
+P.saveProgram(extMatch);
+P.saveProgram(campusMatch);
+const savedList = P.loadProfile().savedPrograms;
+
+t('교외 항목의 scope 가 저장된다',
+  savedList.find((x) => x.programTitle === '○○ 공모전').scope === 'external');
+t('교외 항목의 주관 기관도 저장된다',
+  savedList.find((x) => x.programTitle === '○○ 공모전').host === '한국콘텐츠진흥원');
+t('교내 항목은 campus 로 저장된다',
+  savedList.find((x) => x.programTitle === '교내 특강').scope === 'campus');
+t('scope 가 없는 옛 항목은 campus 로 떨어진다',
+  (() => { P.saveProgram({ ...campusMatch, programTitle: '옛 항목', scope: undefined });
+    return P.loadProfile().savedPrograms.find((x) => x.programTitle === '옛 항목').scope === 'campus'; })());
+
+// 내보내기 → 불러오기 왕복에서도 살아남아야 한다
+const roundTrip = P.importProfile(JSON.stringify(P.exportProfile()));
+t('내보내기·불러오기 왕복에도 scope 가 남는다',
+  roundTrip.savedPrograms.find((x) => x.programTitle === '○○ 공모전').scope === 'external');
+
+// 참여 체크로 넘어갈 때도
+P.markCompleted(extMatch);
+t('완료 기록에도 scope 가 남는다',
+  P.loadProfile().completedActivities.find((x) => x.programTitle === '○○ 공모전').scope === 'external');
+
+// ─────────────────────────────────────────────
 //  결과
 // ─────────────────────────────────────────────
 const total = pass + failures.length;

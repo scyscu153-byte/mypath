@@ -209,6 +209,12 @@ export function saveProgram(match) {
         sourceUrl: match.sourceUrl,
         sourceDomain: match.sourceDomain || '',
         availability: match.availability || 'unknown',
+        // ★교내/교외 구분을 반드시 들고 간다.★
+        //   결과 화면은 구역을 나눠서 보여주지만, 담아두면 프로필의
+        //   한 목록에 교내와 나란히 놓이고 ★그때는 구역 제목이 따라오지 않는다.★
+        //   이 값이 없으면 학교 밖 항목이 교내인 척하게 된다.
+        scope: match.scope === 'external' ? 'external' : 'campus',
+        host: match.host ?? null,
         savedAt: new Date().toISOString(),
       },
     ],
@@ -251,6 +257,8 @@ export function markCompleted(match) {
       programTitle: match.programTitle,
       gainedSkill: match.gapSkill,
       sourceUrl: match.sourceUrl,
+      // 완료 기록에도 남긴다 — 「완료한 활동」 목록에서 교내/교외가 섞이지 않게
+      scope: match.scope === 'external' ? 'external' : 'campus',
       completedAt: new Date().toISOString(),
     },
   ];

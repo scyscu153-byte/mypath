@@ -73,8 +73,31 @@ function todayISO() {
 const CLOSED_KEYWORDS = [
   '마감', '종료', '결과 발표', '결과발표', '수상작', '성과 공유', '성과공유',
   '후기', '완료', '지난', '수료식', '시상식', '선정 결과', '선정결과',
-  '2024학년도', '2025학년도', '2024년', '2025년',
 ];
+
+/**
+ * 제목·요약에 ★지난 연도 표기★가 있는가.
+ *
+ * ★전에는 여기에 '2024학년도'·'2025학년도'를 손으로 적어 뒀다.★
+ * 그래서 2022·2023 표기는 그냥 통과했고, 요약에 "상시"가 있으면
+ * 아래 ONGOING 분기까지 내려가 ★2022학년도 공지가 「상시 모집 중」으로 떴다.★
+ * 실제로 보고서 대표 화면 캡처에 그 상태가 그대로 찍혀 있었다.
+ *
+ * 목록을 늘리는 것은 답이 아니다 — 해가 바뀔 때마다 고쳐야 하고,
+ * 빠뜨린 해는 조용히 통과한다. 현재 학년도와 비교해 판정한다.
+ *
+ * @param {string} text  제목 + 요약
+ * @param {Date}   today
+ * @returns {string|null} 걸린 표기 (없으면 null)
+ */
+function pastYearMark(text, today) {
+  const current = academicYearStart(today).getUTCFullYear();
+  for (const m of String(text).matchAll(/20\d\d\s*(?:학년도|년)/g)) {
+    const year = Number(m[0].slice(0, 4));
+    if (year < current) return m[0];
+  }
+  return null;
+}
 
 /** 상시 운영으로 볼 수 있는 표현 */
 const ONGOING_KEYWORDS = ['상시', '연중', '수시', '재학생 누구나', '언제든'];
@@ -151,8 +174,29 @@ export function judgeAvailability(p, today = new Date()) {
     return { availability: 'closed', dateConfidence: 'verified', reason: `행사 종료 ${p.eventEndAt}` };
   }
   // 날짜가 없어도 제목이 결과·수상·마감을 말하면 지나간 것이다
-  const closedWord = CLOSED_KEYWORDS.find((k) => text.includes(k));
-  if (closedWord && !text.includes('2026학년도')) {
+  // ★현재 학년도 표기가 함께 있으면 종료로 보지 않는다.★
+  //   「2026학년도 ○○ 결과 발표」처럼 올해 공지에 종료 낱말이 섞이는 경우가 있다.
+  const thisYearMark = `${academicYearStart(t).getUTCFullYear()}학년도`;
+  const closedWord = CLOSED_KEYWORDS.find((k) => text.includes(k)) || pastYearMark(text, t);
+
+  // ★확인된 미래 날짜가 있으면 낱말로 뒤집지 않는다.★
+  //
+  //   이 낱말 검사는 ★날짜를 모를 때 쓰는 어림짐작★이다.
+  //   그런데 이 분기가 "미래 마감이면 open" 검사보다 ★앞에★ 있어서,
+  //   9월 30일이 마감인 프로그램이 요약에 「신청 마감 2026-09-30」이라고
+  //   적혀 있다는 이유로 closed 가 됐다. 어림짐작이 확인된 사실을 이겼다.
+  //
+  //   교외 검색에서 특히 잘 터진다 — 프롬프트가 모델에게
+  //   "공모전은 마감이 곧 전부다"라고 각인시켜 놔서 요약에 「마감」이 들어올
+  //   확률이 높다. 3~4건만 뽑는데 두 건이 걸리면 절반이 날아가고,
+  //   화면은 "찾지 못했습니다"라고 말한다 — 찾았는데 우리가 지운 것이다.
+  //
+  //   ★안전장치가 진짜를 죽인 다섯 번째다.★ 앞의 넷과 같은 모양이다(8.5.2).
+  const hasFutureDate = (appEnd && appEnd >= t)
+    || (evEnd && evEnd >= t)
+    || (appStart && appStart > t);
+
+  if (closedWord && !hasFutureDate && !text.includes(thisYearMark)) {
     return { availability: 'closed', dateConfidence: 'estimated', reason: `종료 표현 "${closedWord}"` };
   }
 
