@@ -90,6 +90,19 @@
  * @property {PersonaScores} personaScores  4개 모델의 평가
  * @property {number}  disagreement    의견 갈림 정도 0~1 (클수록 갈림)
  * @property {boolean} isCompleted     이행 여부
+ *
+ * ─ 개선사항.md P0-1 (신찬영 담당, 아직 검증 전이면 null/undefined) ─
+ * @property {'verified'|'unverified'|'broken'|null} [sourceStatus]  서버 측 URL 검증 결과
+ * @property {string|null} [sourceCheckedAt]  검증 시각 (ISO 8601)
+ * @property {string|null} [sourceError]      검증 실패 사유
+ *
+ * ─ 개선사항.md P0-2 (신찬영 담당, 아직 미적용이면 undefined) ─
+ * @property {'open'|'upcoming'|'ongoing'|'unknown'|'closed'} [availability]  모집 상태
+ * @property {'verified'|'estimated'|'unknown'} [dateConfidence]
+ * @property {string|null} [applicationStartAt]
+ * @property {string|null} [applicationEndAt]
+ * @property {string|null} [eventStartAt]
+ * @property {string|null} [eventEndAt]
  */
 
 /**
