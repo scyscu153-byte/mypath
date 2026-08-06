@@ -1,0 +1,21 @@
+{
+  "name": "mypath",
+  "version": "1.0.0",
+  "private": true,
+  "description": "목표 기업이 요구하는 역량과 내 현재 상태의 갭을, 교내 프로그램으로 메워주는 도구",
+  "//": [
+    "빌드 도구를 쓰지 않는 정적 사이트입니다. 의존성이 없습니다.",
+    "이 파일이 필요한 이유는 단 하나 — type: module 입니다.",
+    "api/gateway.js 가 ES 모듈(export default)로 작성돼 있는데,",
+    "이 선언이 없으면 Vercel Node 런타임이 CommonJS 로 해석해 함수가 뜨지 않습니다."
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-models.mjs",
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
