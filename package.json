@@ -11,9 +11,10 @@
   ],
   "type": "module",
   "scripts": {
+    "test": "node scripts/test.mjs",
     "check:syntax": "node scripts/check-syntax.mjs",
     "check:models": "node scripts/check-models.mjs",
-    "check": "npm run check:syntax && npm run check:models",
+    "check": "npm run check:syntax && npm run check:models && npm test",
     "predeploy": "npm run check",
     "deploy": "vercel --prod"
   },

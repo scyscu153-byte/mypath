@@ -190,10 +190,11 @@ function cacheSet(key, value) {
   }
 }
 
+/** @returns {number} 비운 항목 수 — 화면에 "몇 건 비웠다"를 보여주려고 센다 */
 export function clearCache() {
-  Object.keys(localStorage)
-    .filter((k) => k.startsWith(CACHE_PREFIX))
-    .forEach((k) => localStorage.removeItem(k));
+  const keys = Object.keys(localStorage).filter((k) => k.startsWith(CACHE_PREFIX));
+  keys.forEach((k) => localStorage.removeItem(k));
+  return keys.length;
 }
 
 // ─────────────────────────────────────────────
@@ -318,7 +319,12 @@ async function send(payload) {
       __hint: data.hint,
       // 사용량 한도·잘못된 요청은 다시 보내도 결과가 같다.
       // 재시도하면 시간만 버리고 서버를 더 때린다.
-      __noRetry: res.status === 429 || res.status === 400 || res.status === 401,
+      //
+      // ★ 5xx 도 여기 포함시킨다.
+      //   서버가 죽었거나 상류가 타임아웃(35초)났다는 뜻인데,
+      //   재시도하면 35초 × 3회 = 105초 동안 같은 스피너가 돌아간다.
+      //   시연에서는 "멈췄다"로 보인다. 한 번 실패하면 바로 사유를 보여주는 게 낫다.
+      __noRetry: res.status === 429 || res.status === 400 || res.status === 401 || res.status >= 500,
     };
   }
   return data;

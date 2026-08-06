@@ -409,9 +409,25 @@ ${JSON_ONLY}`,
     .map((s, i) => ({
       name: String(s.name || '').trim(),
       reason: String(s.reason || '').trim(),
-      sourceUrl: s.sourceUrl || citations[i] || citations[0] || '',
+      // ★ 모델이 뱉은 문자열이 그대로 <a href> 가 된다 (ui.js "근거 보기").
+      //   여기서 스킴을 확인하지 않으면 `javascript:...` 를 넣을 수 있다.
+      //   목표·채용공고 URL 은 사용자가 입력하고 그대로 프롬프트에 들어가므로,
+      //   공격자가 만든 채용공고 페이지 본문에 지시문을 심으면
+      //   ★피해자가 링크를 붙여넣기만 해도★ 성립한다 (간접 프롬프트 인젝션).
+      //   아래 프로그램 카드(sourceUrl)에는 isAllowedSource 방어가 있는데 여기만 빠져 있었다.
+      sourceUrl: safeHttpUrl(s.sourceUrl || citations[i] || citations[0] || ''),
     }))
-    .filter((s) => s.name && s.sourceUrl);
+    .filter((s) => s.name && s.sourceUrl);   // 빈 문자열이 된 항목은 여기서 걸러진다
+}
+
+/** http/https 만 통과시킨다. 그 외(javascript:, data:, file: …)는 빈 문자열. */
+export function safeHttpUrl(u) {
+  try {
+    const x = new URL(String(u));
+    return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : '';
+  } catch {
+    return '';
+  }
 }
 
 // ─────────────────────────────────────────────

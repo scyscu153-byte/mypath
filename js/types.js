@@ -247,7 +247,11 @@ export const MOCK_MATCHES = [
       senior:       { score: 8, comment: '방학 중 단기라 학기 부담이 적음' },
       market:       { score: 6, comment: 'AI 실습 경험은 게임 클라이언트 직군에서 가점 정도' },
     },
-    disagreement: 0.4,
+    // ★ 실제 파이프라인 공식과 같아야 한다: (최고점 − 최저점) / 10.
+    //   9,7,8,6 → spread 3 → 0.3. 임계값이 0.5 이므로 ⚡ 배지는 뜨지 않는다.
+    //   전에는 여기가 0.4로 적혀 있었는데, 그래도 안 뜨는 값이라 결과는 같았지만
+    //   ?mock=1 로 리허설할 때 보이는 화면이 본 시연과 어긋날 수 있는 구조였다.
+    disagreement: 0.3,
     isCompleted: false,
   },
   {
@@ -263,10 +267,12 @@ export const MOCK_MATCHES = [
     personaScores: {
       practitioner: { score: 9, comment: '실제 팀에서 협업 도구를 쓰게 되므로 갭 해소에 직접적' },
       professor:    { score: 9, comment: '학점(2학점) 인정까지 되어 학업과 병행 가능' },
-      senior:       { score: 5, comment: '2주 전일제라 방학 일정을 크게 씀' },
+      senior:       { score: 3, comment: '2주 전일제라 방학 일정을 통째로 쓴다. 1학년에겐 부담이 큼' },
       market:       { score: 8, comment: '신입 채용에서 실무 경험은 명확한 가점' },
     },
-    disagreement: 0.7,
+    // 9,9,3,8 → spread 6 → 0.6. 임계값 0.5를 넘으므로 ⚡ 배지가 뜬다.
+    // 시연에서 짚어야 할 카드이므로 리허설(?mock=1)에서도 실제로 보여야 한다.
+    disagreement: 0.6,
     isCompleted: false,
   },
 ];

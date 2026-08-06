@@ -7,7 +7,7 @@
 
 import * as pipeline from './pipeline.js';
 import * as mockPipeline from './mock.js';
-import { getUsage, setUserKey, getUserKey, hasUserKey } from './gateway.js';
+import { getUsage, setUserKey, getUserKey, hasUserKey, clearCache } from './gateway.js';
 import { DEMO_PROFILE, DEMO_TARGETS } from './demo.js';
 import { loadProfile, saveProfile as persistProfile, clearProfile, markCompleted } from './profile.js';
 import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
@@ -23,6 +23,22 @@ let currentTarget = null;
 let currentMatches = [];
 /** @type {{droppedForSource?: number, supplementedCount?: number}} */
 let currentMeta = {};
+
+/**
+ * 실행 토큰 — "지금 화면에 그려야 할 결과"가 어느 실행의 것인지 가린다.
+ *
+ * 이게 없으면: 분석 중에 헤더 → 내 프로필 → 새 목표 → 다시 제출하면
+ * 파이프라인 두 개가 동시에 돌고, ★먼저 끝난 쪽★이 currentMatches 를 덮어쓴다.
+ * 결과는 리포트 제목은 새 목표인데 카드는 이전 목표 것 — 심사위원이 바로 알아챈다.
+ * 값이 올라간 뒤에 도착한 결과는 조용히 버린다.
+ */
+let runToken = 0;
+
+/** 분석이 도는 중인가 — 진행 화면 밖으로 나가는 것을 막는 데 쓴다 */
+function isRunning() {
+  return running;
+}
+let running = false;
 
 // ─────────────────────────────────────────────
 //  로컬 저장 — js/profile.js 로 통합 (이전엔 이 파일에 별도로 loadProfile/saveProfile이
@@ -136,17 +152,23 @@ async function loadSuggestedTargets(handlers) {
 }
 
 async function runPipeline() {
+  const my = ++runToken;          // 이 실행의 번호
+  const mine = currentTarget;     // 이 실행이 분석 중인 목표 (도중에 바뀔 수 있다)
+  running = true;
   const onStage = renderProgress(mountOf('progress'));
   showScreen('progress');
 
   try {
     const result = await impl.run({
       profile,
-      target: currentTarget.companyOrRole,
-      jobPostingUrl: currentTarget.jobPostingUrl,
-      interestAreas: currentTarget.interestAreas,
+      target: mine.companyOrRole,
+      jobPostingUrl: mine.jobPostingUrl,
+      interestAreas: mine.interestAreas,
       onStage,
     });
+    // 그 사이 새 분석이 시작됐다면 이 결과는 낡은 것이다. 화면에 그리지 않는다.
+    if (my !== runToken) return;
+    currentTarget = mine;
     currentTarget.requiredSkills = result.requiredSkills;
     currentTarget.gapSkills = result.gapSkills;
     currentMatches = result.matches;
@@ -159,6 +181,7 @@ async function runPipeline() {
     updateCreditBadge();
     goReport();
   } catch (err) {
+    if (my !== runToken) return;
     const message = err?.message || String(err);
     onStage({ stage: 'unknown', status: 'error', message });
 
@@ -167,6 +190,8 @@ async function runPipeline() {
     if (/한도|너무 잦|429/.test(message)) {
       openKeyPanel();
     }
+  } finally {
+    if (my === runToken) running = false;
   }
 }
 
@@ -194,22 +219,44 @@ function goReport() {
 function goProfile() {
   renderProfile(mountOf('profile'), profile, {
     onNewTarget: goTarget,
+    // 결과를 보다가 프로필로 넘어온 경우에만 돌아갈 길을 준다.
+    // (없으면 성장 루프를 보여준 뒤 결과 화면으로 못 돌아가서 40~70초 + 68크레딧을 다시 쓴다)
+    onBackToReport: currentMatches.length ? goReport : null,
     onSave: (partial) => {
       profile.grade = partial.grade;
       profile.age = partial.age;
       profile.department = partial.department;
       profile.certificates = partial.certificates;
       profile.skills = partial.skills;
-      profile.traits = { activityPreference: partial.activityPreference };
+      // ★ traits 를 통째로 갈아끼우면 안 된다.
+      //   수정 폼에 없는 값(supportDisability)이 조용히 사라져서,
+      //   장애학생 지원 대상으로 온보딩한 학생이 프로필을 한 번 저장하는 순간
+      //   해당 프로그램이 전부 안 보이게 된다. 복구 방법은 초기화뿐이다.
+      profile.traits = { ...(profile.traits || {}), activityPreference: partial.activityPreference };
       saveProfile();
       goProfile(); // 저장 후 뷰 모드로 다시 그린다 (수정된 값 즉시 반영)
     },
     onReset: () => {
+      // ★ 프로필만 지우면 안 된다.
+      //   학교 실습실·심사장의 공용 PC를 생각하면, 앞사람이 "초기화"를 누르고 자리를 떠도
+      //   mypath.userKey 에 ★그 사람의 팩트챗 API 키가 평문으로★ 남는다.
+      //   다음 사람은 헤더의 "내 키 사용 중"을 보며 남의 월 크레딧을 쓰게 된다.
+      //   캐시에도 앞사람의 학과·갭 분석 결과가 12시간 남는다.
       clearProfile();
+      clearCache();
+      setUserKey('');
       profile = null;
       currentTarget = null;
       currentMatches = [];
+      updateCreditBadge();
+      injectHeaderControls();   // "내 키 사용 중" 표시를 되돌린다
       goOnboarding();
+    },
+    onImported: (next) => {
+      profile = next;
+      currentTarget = null;
+      currentMatches = [];
+      goProfile();
     },
   });
   showScreen('profile');
@@ -237,6 +284,8 @@ function injectHeaderControls() {
     profileBtn.textContent = '내 프로필';
     profileBtn.className = 'text-xs text-slate-400 hover:text-brand-400 transition-colors mr-3';
     profileBtn.addEventListener('click', () => {
+      // 분석 중에는 막는다 — 나갔다가 결과가 도착하면 화면이 갑자기 튄다.
+      if (isRunning()) return;
       if (profile) goProfile();
     });
     badge.insertAdjacentElement('beforebegin', profileBtn);

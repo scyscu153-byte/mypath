@@ -58,6 +58,76 @@ export function emptyProfile() {
 }
 
 // ─────────────────────────────────────────────
+//  내보내기 · 불러오기
+//
+//  프로필은 서버에 없다. 브라우저 localStorage 에만 있다.
+//  그래서 브라우저를 바꾸거나, 시크릿 창을 닫거나, 방문 기록을 지우면
+//  ★쌓아온 이행 기록이 통째로 사라진다.★
+//  서버에 계정을 두지 않겠다는 선택의 대가이므로, 대신 파일로 들고 갈 수 있게 한다.
+// ─────────────────────────────────────────────
+
+const EXPORT_KIND = 'careerbridge-mjc.profile';
+const EXPORT_VERSION = 1;
+
+/** 저장 파일에 담을 객체를 만든다 */
+export function exportProfile() {
+  const profile = loadProfile();
+  if (!profile) throw new Error('내보낼 프로필이 없습니다');
+  return {
+    kind: EXPORT_KIND,
+    version: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    profile,
+  };
+}
+
+/** 내보내기 파일 이름 — 학과·날짜가 들어가야 나중에 알아본다 */
+export function exportFilename(profile) {
+  const d = new Date().toISOString().slice(0, 10);
+  const dept = String(profile?.department || '프로필').replace(/[\\/:*?"<>|\s]/g, '');
+  return `CareerBridge_${dept}_${d}.json`;
+}
+
+/**
+ * 불러오기. 남이 준 파일일 수도 있으므로 모양을 직접 확인한다.
+ * 확인하지 않고 통째로 넣으면 화면이 백지가 되고 원인도 안 보인다.
+ *
+ * @param {string} text 파일 내용
+ * @returns {import('./types.js').Profile} 저장된 프로필
+ */
+export function importProfile(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('JSON 형식이 아닙니다. 내보내기로 만든 파일이 맞는지 확인해주세요.');
+  }
+
+  // 내보내기 파일이면 안쪽을 꺼내고, 프로필 객체를 그대로 준 경우도 받아준다.
+  const p = data?.kind === EXPORT_KIND ? data.profile : data;
+  if (!p || typeof p !== 'object' || Array.isArray(p)) {
+    throw new Error('프로필 데이터를 찾을 수 없습니다.');
+  }
+  if (!p.department && !p.grade) {
+    throw new Error('학과·학년이 없습니다. CareerBridge 내보내기 파일이 아닌 것 같습니다.');
+  }
+
+  // 빠진 항목은 기본값으로 채운다 — 옛 버전 파일도 열려야 한다.
+  const base = emptyProfile();
+  const asList = (v) => (Array.isArray(v) ? v : []);
+  return saveProfile({
+    ...base,
+    ...p,
+    grade: Number(p.grade) || base.grade,
+    department: String(p.department || ''),
+    certificates: asList(p.certificates),
+    skills: asList(p.skills),
+    completedActivities: asList(p.completedActivities),
+    traits: { ...base.traits, ...(p.traits || {}) },
+  });
+}
+
+// ─────────────────────────────────────────────
 //  성장 루프 — 이행하면 프로필이 자란다
 // ─────────────────────────────────────────────
 

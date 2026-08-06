@@ -9,7 +9,8 @@
 import { STAGE, STAGE_LABEL, PERSONAS, DISCLAIMER } from './types.js';
 // 어떤 관점을 어떤 회사의 모델이 평가했는지 카드에 적는다.
 // "AI 4개를 쓴다"는 주장은 모델 이름이 화면에 있어야 확인 가능한 주장이 된다.
-import { PERSONA_MODEL } from './gateway.js';
+import { PERSONA_MODEL, clearCache } from './gateway.js';
+import { exportProfile, exportFilename, importProfile } from './profile.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
 function esc(str) {
@@ -187,7 +188,8 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
     <form id="form-target" class="space-y-4">
       <label class="block">
         <span class="text-sm text-slate-300">목표 기업 또는 직군</span>
-        <input name="companyOrRole" type="text" required placeholder="예: 게임 클라이언트 개발자, 네이버, 스타트업 백엔드"
+        <!-- maxlength: 이 값은 리포트 제목에 그대로 들어간다. 길이를 안 막으면 화면이 뚫린다. -->
+        <input name="companyOrRole" type="text" required maxlength="60" placeholder="예: 게임 클라이언트 개발자, 네이버, 스타트업 백엔드"
           class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
         <span id="target-hint" class="mt-1 block text-xs text-slate-500"></span>
       </label>
@@ -200,7 +202,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
 
       <label class="block">
         <span class="text-sm text-slate-300">관심 분야 <span class="text-slate-500">(선택 — 전공과 관련 없어도 참여하고 싶은 분야)</span></span>
-        <input name="interestAreas" type="text" placeholder="예: 어학, 자격증, 봉사활동"
+        <input name="interestAreas" type="text" maxlength="60" placeholder="예: 어학, 자격증, 봉사활동"
           class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
         <span class="mt-1 block text-xs text-slate-500">부족한 역량과 별개로, 이 분야 프로그램도 따로 찾아드려요.</span>
       </label>
@@ -441,8 +443,11 @@ function programCard(match) {
     <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-4" data-match-id="${esc(match.id)}">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <h4 class="font-semibold text-slate-100">${esc(match.programTitle)}</h4>
-          <p class="text-sm text-slate-400 mt-0.5">${esc(match.summary)}</p>
+          <!-- break-words: 제목·요약은 AI가 쓴 문자열이라 길이를 보장할 수 없다.
+               한글은 word-break:keep-all 이 공백에서만 끊으므로, 공백 없는 긴 문자열이 오면
+               카드를 뚫고 페이지 전체에 가로 스크롤이 생긴다. -->
+          <h4 class="font-semibold text-slate-100 break-words">${esc(match.programTitle)}</h4>
+          <p class="text-sm text-slate-400 mt-0.5 break-words">${esc(match.summary)}</p>
         </div>
         <div class="flex flex-col items-end gap-1">
           ${availabilityBadge(match)}
@@ -501,11 +506,14 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
     droppedSchedule > 0 ? `마감·종료된 프로그램 ${droppedSchedule}건 제외` : '',
     droppedBroken > 0 ? `접속되지 않는 링크 ${droppedBroken}건 제외` : '',
     supplemented > 0 ? `실시간 검색이 못 채운 ${supplemented}건은 직접 수집한 데이터로 보충` : '',
-  ].filter(Boolean).join(' · ') || '이번 검색은 걸러진 항목 없이 전부 표시합니다';
+  ].filter(Boolean).join(' · ')
+    // 0건일 때 "전부 표시합니다"라고 적으면, 바로 아래 "찾지 못했습니다"와 나란히 붙어
+    // 앞뒤가 안 맞는 화면이 된다. 결과가 없을 때는 이 줄을 아예 비운다.
+    || (byGap.size === 0 ? '' : '이번 검색은 걸러진 항목 없이 전부 표시합니다');
 
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-1">
-      <h2 class="text-xl font-bold">"${esc(target.companyOrRole)}"에 필요한 걸 채워드릴게요</h2>
+      <h2 class="text-xl font-bold break-words">"${esc(target.companyOrRole)}"에 필요한 걸 채워드릴게요</h2>
     </div>
     <p class="text-sm text-slate-400 mb-1">${DISCLAIMER.ELIGIBILITY}</p>
     <p class="text-xs text-slate-500 mb-2">${esc(sourceNote)}</p>
@@ -517,7 +525,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
         <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-6 text-center">
           <p class="text-slate-300 font-medium">지금 확인되는 교내 프로그램을 찾지 못했습니다.</p>
           <p class="text-sm text-slate-400 mt-2 leading-relaxed">
-            출처가 확인되지 않은 항목은 표시하지 않습니다.<br>
+            출처가 없거나 링크가 열리지 않는 항목은 표시하지 않습니다.<br>
             목표를 조금 넓게 적으면 (예: "게임 개발자" → "소프트웨어 개발자") 결과가 나올 수 있습니다.
           </p>
         </div>` : ''}
@@ -600,7 +608,11 @@ export function renderProfile(mount, profile, handlers) {
 }
 
 function renderProfileView(mount, profile, handlers) {
-  const { onNewTarget } = handlers;
+  const { onNewTarget, onBackToReport } = handlers;
+  // 손으로 편집됐거나 옛 버전이 만든 프로필이면 이 배열이 없을 수 있다.
+  // 다른 읽기 지점은 전부 `|| []` 로 감싸져 있는데 여기만 빠져 있었다 —
+  // 없으면 마이 프로필 화면 전체가 백지가 된다.
+  const done = profile.completedActivities || [];
 
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-6">
@@ -625,12 +637,12 @@ function renderProfileView(mount, profile, handlers) {
       </div>
 
       <div>
-        <span class="text-sm text-slate-500">완료한 활동 (${profile.completedActivities.length})</span>
+        <span class="text-sm text-slate-500">완료한 활동 (${done.length})</span>
         ${
-          profile.completedActivities.length
+          done.length
             ? `<ul class="mt-1 space-y-1 text-sm text-slate-300">
-                ${profile.completedActivities
-                  .map((a) => `<li>· ${esc(a.programTitle)} <span class="text-slate-500">— ${esc(a.gainedSkill)} 역량 획득</span></li>`)
+                ${done
+                  .map((a) => `<li class="break-words">· ${esc(a.programTitle)} <span class="text-slate-500">— ${esc(a.gainedSkill)} 역량 획득</span></li>`)
                   .join('')}
                </ul>`
             : '<p class="mt-1 text-sm text-slate-500">아직 없어요. 추천받은 프로그램에 참여하면 여기 쌓여요.</p>'
@@ -638,10 +650,60 @@ function renderProfileView(mount, profile, handlers) {
       </div>
     </div>
 
+    ${
+      onBackToReport
+        ? `<button id="btn-profile-back"
+             class="w-full mt-6 rounded border border-brand-400/40 hover:border-brand-400 transition-colors py-2.5 text-sm font-semibold text-brand-400">
+             ← 방금 본 추천 결과로 돌아가기
+           </button>`
+        : ''
+    }
+
     <button id="btn-profile-new-target"
-      class="w-full mt-6 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
+      class="w-full ${onBackToReport ? 'mt-3' : 'mt-6'} rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
       새 목표 설정하기
     </button>
+
+    <!-- ──────────────────────────────────────────────
+         내 데이터 — 이 앱에는 서버 계정이 없다.
+         프로필은 이 브라우저에만 있으므로, 브라우저를 바꾸거나
+         방문 기록을 지우면 쌓아온 활동 기록이 사라진다.
+         파일로 들고 갈 길을 열어둔다.
+         ────────────────────────────────────────────── -->
+    <details class="mt-8 rounded-lg border border-ink-600">
+      <summary class="cursor-pointer select-none px-4 py-3 text-sm text-slate-300 hover:text-slate-100">
+        내 데이터 관리
+      </summary>
+      <div class="border-t border-ink-600 px-4 py-4 space-y-3">
+        <p class="text-xs text-slate-500 leading-relaxed">
+          이 서비스는 서버에 계정을 두지 않습니다. 프로필은 <strong class="text-slate-400">이 브라우저에만</strong> 저장되므로,
+          브라우저를 바꾸거나 방문 기록을 지우면 사라집니다. 파일로 내보내 두면 다른 기기에서 이어서 쓸 수 있습니다.
+        </p>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-data-export"
+            class="rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+            내보내기 (.json)
+          </button>
+          <button id="btn-data-import"
+            class="rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+            불러오기
+          </button>
+        </div>
+        <input id="input-data-import" type="file" accept="application/json,.json" class="hidden" />
+
+        <button id="btn-data-cache"
+          class="w-full rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-xs text-slate-300">
+          저장된 AI 응답 비우기
+        </button>
+        <p class="text-xs text-slate-600 leading-relaxed">
+          같은 질문을 12시간 안에 다시 하면 크레딧을 쓰지 않고 저장해둔 답을 재사용합니다.
+          <strong class="text-slate-500">최신 공지로 다시 검색하고 싶을 때</strong> 비우세요. 프로필은 지워지지 않습니다.
+        </p>
+
+        <p id="data-msg" class="text-xs min-h-[1rem]" role="status" aria-live="polite"></p>
+      </div>
+    </details>
 
     <button id="btn-profile-reset"
       class="w-full mt-3 text-xs text-slate-500 hover:text-red-400 transition-colors py-1">
@@ -652,6 +714,65 @@ function renderProfileView(mount, profile, handlers) {
   mount.querySelector('#btn-profile-new-target').addEventListener('click', onNewTarget);
   mount.querySelector('#btn-profile-edit').addEventListener('click', () => renderProfileEdit(mount, profile, handlers));
   mount.querySelector('#btn-profile-reset').addEventListener('click', () => confirmReset(mount, handlers));
+  if (onBackToReport) mount.querySelector('#btn-profile-back').addEventListener('click', onBackToReport);
+
+  wireDataControls(mount, profile, handlers);
+}
+
+// ─────────────────────────────────────────────
+//  내 데이터 관리 — 내보내기 · 불러오기 · 캐시 비우기
+// ─────────────────────────────────────────────
+
+function wireDataControls(mount, profile, handlers) {
+  const msg = mount.querySelector('#data-msg');
+  const say = (text, ok = true) => {
+    msg.textContent = text;
+    msg.className = `text-xs min-h-[1rem] ${ok ? 'text-emerald-400' : 'text-red-400'}`;
+  };
+
+  // ── 내보내기 ──
+  mount.querySelector('#btn-data-export').addEventListener('click', () => {
+    try {
+      const blob = new Blob([JSON.stringify(exportProfile(), null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = exportFilename(profile);
+      a.click();
+      // 브라우저가 다운로드를 시작할 시간을 준 뒤 해제한다
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      say(`${exportFilename(profile)} 으로 저장했습니다.`);
+    } catch (e) {
+      say(e?.message || '내보내기에 실패했습니다.', false);
+    }
+  });
+
+  // ── 불러오기 ──
+  const fileInput = mount.querySelector('#input-data-import');
+  mount.querySelector('#btn-data-import').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    try {
+      const next = importProfile(await file.text());
+      say(`불러왔습니다 — ${next.department || '학과 미입력'} · 완료한 활동 ${(next.completedActivities || []).length}건`);
+      // 화면을 새 프로필로 다시 그린다
+      setTimeout(() => handlers.onImported?.(next), 600);
+    } catch (e) {
+      say(e?.message || '불러오기에 실패했습니다.', false);
+    } finally {
+      fileInput.value = '';   // 같은 파일을 다시 골라도 change 가 뜨게
+    }
+  });
+
+  // ── 캐시 비우기 ──
+  mount.querySelector('#btn-data-cache').addEventListener('click', (e) => {
+    const n = clearCache();
+    say(n ? `저장된 응답 ${n}건을 비웠습니다. 다음 분석은 새로 검색합니다.` : '비울 응답이 없습니다.');
+    e.target.blur();
+  });
 }
 
 function renderProfileEdit(mount, profile, handlers) {
@@ -761,7 +882,11 @@ function confirmReset(mount, handlers) {
   el.innerHTML = `
     <div class="w-full max-w-sm rounded-lg border border-ink-600 bg-ink-900 p-6" role="dialog" aria-modal="true">
       <p class="text-slate-100 font-medium mb-1">정말 프로필과 활동 기록을 모두 삭제할까요?</p>
-      <p class="text-sm text-slate-500 mb-5">이 작업은 되돌릴 수 없습니다.</p>
+      <p class="text-sm text-slate-500 mb-2">이 작업은 되돌릴 수 없습니다.</p>
+      <p class="text-xs text-slate-500 mb-5 leading-relaxed">
+        입력해 둔 <strong class="text-slate-400">API 키</strong>와 저장된 AI 응답도 함께 삭제됩니다.
+        기록을 남겨두려면 먼저 <strong class="text-slate-400">내 데이터 관리 → 내보내기</strong>를 이용하세요.
+      </p>
       <div class="flex gap-2">
         <button id="reset-cancel" class="flex-1 rounded border border-ink-600 hover:border-brand-400 transition-colors py-2 text-sm text-slate-300">취소</button>
         <button id="reset-confirm-btn" class="flex-1 rounded bg-red-500 hover:bg-red-400 transition-colors py-2 text-sm font-medium text-white">삭제</button>

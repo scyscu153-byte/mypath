@@ -41,8 +41,13 @@ const ALLOWED_MODELS = new Set([
 /** 응답 길이 상한 — 크레딧 폭주 방지 */
 const MAX_TOKENS_CAP = 4000;
 
-/** 게이트웨이 자체 응답 대기 상한 (ms). sonar-pro 실측 최대 35초. */
-const UPSTREAM_TIMEOUT_MS = 55_000;
+/**
+ * 게이트웨이 자체 응답 대기 상한 (ms). sonar-pro 실측 최대 35초.
+ *
+ * 55초로 두면 브라우저가 3회 재시도할 때 최악 167초 — 시연 슬롯이 3~5분인데
+ * 그중 3분이 멈춘 스피너 하나로 사라진다. 실측 상한(35초)에 맞춰 잘라낸다.
+ */
+const UPSTREAM_TIMEOUT_MS = 35_000;
 
 // ─────────────────────────────────────────────
 //  크레딧 방어 — 이 주소는 공개다
@@ -57,8 +62,18 @@ const UPSTREAM_TIMEOUT_MS = 55_000;
 //     정확한 총량 제어가 필요하면 외부 저장소가 필요하다 — 대회 범위를 넘는다.
 // ─────────────────────────────────────────────
 
-/** 파이프라인 1회 = 7호출. 한 사람이 10분에 3회 정도는 돌려볼 수 있게 둔다. */
-const PER_IP_LIMIT = 25;
+/**
+ * 파이프라인 1회 = 8호출 (목표 제안 1 + 요구역량 1 + 갭 1 + 검색 1 + 페르소나 4).
+ *
+ * ★ 25로 두면 안 된다.
+ *   심사장은 한 회의실의 공용 Wi-Fi다 — 심사위원 세 명이 ★같은 공인 IP★로 보인다.
+ *   한 명이 3~5분씩 최대 3회면 9사이클 = 72호출. 25는 3사이클째에 이미 막힌다.
+ *   그리고 막히면 app.js 가 429를 보고 ★API 키 입력 패널★을 띄운다.
+ *   심사위원에게는 키가 없다. 시연이 그 자리에서 끝난다.
+ *
+ *   비용 상한은 아래 GLOBAL_LIMIT 이 잡는다. 이 값은 "한 사람이 폭주하는 것"만 막으면 된다.
+ */
+const PER_IP_LIMIT = 120;   // = 15사이클 / 10분
 const PER_IP_WINDOW_MS = 10 * 60 * 1000;
 
 /** 전체 상한 — 한 시간에 파이프라인 약 25회분 */
@@ -145,9 +160,25 @@ export default async function handler(req, res) {
 
   const { endpoint = 'chat/completions', ...payload } = body;
 
+  // endpoint 는 클라이언트가 준 값이라 그대로 URL 에 이어붙이면 안 된다.
+  // 호스트는 못 바꾸지만, 데모 키가 실린 요청을 게이트웨이의 임의 경로로 보낼 수 있다.
+  if (endpoint !== 'chat/completions' && endpoint !== 'credits') {
+    return res.status(400).json({ error: '허용되지 않은 경로입니다' });
+  }
+
   // 크레딧 조회는 본문 없이 GET 으로 처리
   if (endpoint === 'credits') {
     return forwardCredits(key, res);
+  }
+
+  // ★ 입력 크기 상한.
+  //   max_tokens 는 ★출력★만 자른다. 입력은 여기서 막지 않으면
+  //   Vercel 본문 한도(4.5MB)까지 밀어넣을 수 있고, 호출당 크레딧이 그만큼 커진다.
+  //   사용량 제한을 호출 ★횟수★로만 세고 있으므로 이게 없으면 증폭기가 된다.
+  //   실제 파이프라인의 최대 프롬프트는 4KB 수준이다.
+  const inputSize = JSON.stringify(payload.messages ?? '').length;
+  if (inputSize > 20_000) {
+    return res.status(413).json({ error: '요청이 너무 큽니다' });
   }
 
   if (!ALLOWED_MODELS.has(payload.model)) {
