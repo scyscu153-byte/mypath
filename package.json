@@ -12,7 +12,6 @@
   "type": "module",
   "scripts": {
     "check": "node scripts/check-models.mjs",
-    "dev": "vercel dev",
     "deploy": "vercel --prod"
   },
   "engines": {
