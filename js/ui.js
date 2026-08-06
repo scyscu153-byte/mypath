@@ -92,6 +92,28 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
           class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
       </label>
 
+      <!--
+        ★ 특정 대상에게만 열려 있는 프로그램을 아무에게나 띄우지 않기 위한 선택 항목.
+          체크하지 않으면 해당 프로그램을 추천하지 않고, 체크하면 정상적으로 함께 찾는다.
+          "자격을 판정하지 않는다"는 원칙과 어긋나지 않는다 —
+          우리가 판정하는 게 아니라 ★본인이 직접 선택★하는 것이다.
+      -->
+      <fieldset class="pt-1">
+        <legend class="text-sm text-slate-300 mb-2">
+          지원 대상 <span class="text-slate-500">(선택 — 해당하면 관련 프로그램도 함께 찾아드려요)</span>
+        </legend>
+        <label class="flex items-start gap-2">
+          <input name="supportDisability" type="checkbox" class="mt-1 rounded bg-ink-800 border-ink-600" />
+          <span class="text-sm text-slate-300">
+            장애학생 지원 대상입니다
+            <span class="block text-xs text-slate-500">
+              체크하지 않으면 장애학생 대상 프로그램은 추천에서 제외합니다.
+              이 정보는 이 브라우저에만 저장되며 어디로도 전송되지 않습니다.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
       <button type="submit"
         class="w-full mt-2 rounded bg-brand-500 hover:bg-brand-400 transition-colors py-2.5 text-sm font-semibold text-white">
         시작하기
@@ -111,6 +133,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
       age: fd.get('age') ? Number(fd.get('age')) : null,
       certificates: toList(fd.get('certificates')),
       skills: toList(fd.get('skills')),
+      supportDisability: fd.get('supportDisability') === 'on',
     });
   });
 

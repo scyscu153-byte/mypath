@@ -487,7 +487,7 @@ export const INTEREST_PREFIX = '관심 분야: ';
  * @param {import('./types.js').GapSkill[]} gaps
  * @param {string} [interestAreas]  전공과 무관하게 참여하고 싶은 분야 (예: "어학, 자격증")
  */
-export async function searchPrograms(gaps, interestAreas) {
+export async function searchPrograms(gaps, interestAreas, opts = {}) {
   const gapList = gaps.map((g) => `- ${g.name} (${g.reason})`).join('\n');
   const today = todayISO();
 
@@ -593,8 +593,13 @@ ${gapList}${interestBlock}
     }))
     .filter((p) => p.programTitle && isAllowedSource(p.sourceUrl));
 
+  // 프로필에서 "장애학생 지원 대상"을 선택하지 않았으면 해당 프로그램은 제외한다.
+  //   선택했으면 그대로 함께 찾는다.
+  const wantsDisability = opts.supportDisability === true;
+
   const matches = matchesRaw
     .filter((p) => isStudentProgram(p))
+    .filter((p) => wantsDisability || !isDisabilitySupportProgram(p))
     .map((p) => ({
       ...p,
       sourceDomain: safeHost(p.sourceUrl),
@@ -654,6 +659,9 @@ ${gapList}${interestBlock}
       : g.name;
     for (const p of findFallback([query], 2)) {
       if (seenTitles.has(p.programTitle)) continue;
+      // 검색 결과와 동일하게 적용한다 — 안 그러면 수집 데이터로 새어 나온다
+      if (!wantsDisability && isDisabilitySupportProgram(p)) continue;
+      if (!isStudentProgram(p)) continue;
       seenTitles.add(p.programTitle);
       supplemented.push({
         gapSkill: g.name,
@@ -929,6 +937,25 @@ const PROGRAM_WORDS = [
   '모집', '신청', '멘토링', '튜터링', '아카데미', '워크숍', '워크샵', '연수',
 ];
 
+/**
+ * 특정 대상에게만 열려 있는 프로그램인지.
+ *
+ * ★ 왜 제외가 아니라 "라우팅"인가
+ *   장애학생 대상 프로그램을 아무에게나 띄우면 비대상 학생은 헛걸음하고,
+ *   민감한 사안이라 불쾌할 수도 있다.
+ *   그렇다고 아예 빼면 ★정작 필요한 학생에게 아무것도 안 뜬다.★
+ *   그래서 프로필에서 본인이 선택한 경우에만 함께 찾는다.
+ *
+ *   "자격을 판정하지 않는다"는 원칙과 어긋나지 않는다 —
+ *   우리가 판정하는 게 아니라 본인이 직접 고른 것이다.
+ */
+const DISABILITY_TARGET = ['장애학생', '장애 학생', '장애대학생', '장애 대학생', '소수집단학생'];
+
+export function isDisabilitySupportProgram(p) {
+  const t = nosp(`${p.programTitle || ''} ${p.summary || ''}`);
+  return DISABILITY_TARGET.some((w) => t.includes(nosp(w)));
+}
+
 export function isStudentProgram(p) {
   const host = safeHost(p.sourceUrl).toLowerCase();
   if (NON_STUDENT_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false;
@@ -1159,7 +1186,9 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   } = await step(STAGE.PROGRAM_SEARCH,
-    () => searchPrograms(gapSkills, interestAreas),
+    () => searchPrograms(gapSkills, interestAreas, {
+      supportDisability: profile?.traits?.supportDisability === true,
+    }),
     '교내 프로그램을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PROGRAM_SEARCH, 'done', {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,

@@ -63,7 +63,7 @@ function goOnboarding() {
         certificates: partial.certificates,
         skills: partial.skills,
         completedActivities: [],
-        traits: { activityPreference: null },
+        traits: { activityPreference: null, supportDisability: partial.supportDisability === true },
         updatedAt: new Date().toISOString(),
       };
       saveProfile();
@@ -77,7 +77,7 @@ function goTarget() {
   const handlers = {
     demoTargets: DEMO_TARGETS,
     onSubmit: (input) => {
-      profile.traits = { activityPreference: input.activityPreference };
+      profile.traits = { ...(profile.traits || {}), activityPreference: input.activityPreference };
       saveProfile();
 
       currentTarget = {
