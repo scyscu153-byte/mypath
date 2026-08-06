@@ -22,6 +22,8 @@ let profile = loadProfile();
 let currentTarget = null;
 /** @type {import('./types.js').ProgramMatch[]} */
 let currentMatches = [];
+/** @type {{droppedForSource?: number, supplementedCount?: number}} */
+let currentMeta = {};
 
 // ─────────────────────────────────────────────
 //  로컬 저장
@@ -91,6 +93,7 @@ function goTarget() {
         id: 'target-' + Date.now(),
         profileId: profile.id,
         companyOrRole: input.companyOrRole,
+        jobPostingUrl: input.jobPostingUrl,
         globalInterest: input.globalInterest,
         requiredSkills: [],
         gapSkills: [],
@@ -110,11 +113,16 @@ async function runPipeline() {
     const result = await impl.run({
       profile,
       target: currentTarget.companyOrRole,
+      jobPostingUrl: currentTarget.jobPostingUrl,
       onStage,
     });
     currentTarget.requiredSkills = result.requiredSkills;
     currentTarget.gapSkills = result.gapSkills;
     currentMatches = result.matches;
+    currentMeta = {
+      droppedForSource: result.filtered?.droppedForSource,
+      supplementedCount: result.supplement?.count,
+    };
     updateCreditBadge();
     goReport();
   } catch (err) {
@@ -146,7 +154,7 @@ function goReport() {
       // 체크박스 자체는 ui.js가 즉시 완료 상태로 갱신하므로 화면 전체를 다시 그리지 않아도 된다.
     },
     onNewTarget: goTarget,
-  });
+  }, currentMeta);
   showScreen('report');
 }
 
