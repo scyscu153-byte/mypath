@@ -254,13 +254,13 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
           방학이라 교내 공지가 적을 때 도움이 됩니다.
           교외 항목은 <strong class="text-maintext">따로 묶어서</strong> 보여드리고,
           <strong class="text-maintext">출처 검증은 교내 것만</strong> 합니다.
-          <!-- ★"20초 더"라고 적었다가 고쳤다.★ 교내 검색과 나란히 돌리므로
-               기다리는 시간은 거의 그대로다. 다만 학교 밖은 검색 범위가 넓어
-               제한 시간 안에 못 끝나는 일이 있고, 그때는 교외만 비워서 보여준다. -->
-          크레딧이 28 더 들고, 교내 검색과 <strong class="text-maintext">같이 돌기 때문에
-          기다리는 시간은 거의 그대로</strong>입니다.
-          다만 학교 밖은 찾을 범위가 넓어 <strong class="text-maintext">가끔 시간 안에 못 끝냅니다</strong> —
-          그럴 땐 교내 결과만 나옵니다.
+          <!-- ★문구를 두 번 고쳤다.★
+               ① "20초 더" → 병렬로 바꾸면서 "거의 그대로"
+               ② 병렬이 교내 검색까지 죽여서 순차로 되돌림 → 다시 "더 걸린다"
+               화면이 약속한 것과 실제 동작이 어긋나면 안 된다. -->
+          <strong class="text-maintext">20~40초와 크레딧 28이 더</strong> 듭니다 —
+          교내 검색이 끝난 뒤에 이어서 찾기 때문입니다.
+          그래서 <strong class="text-maintext">교외가 실패해도 교내 결과는 그대로 나옵니다.</strong>
         </p>
       </div>
 
