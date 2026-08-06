@@ -85,6 +85,7 @@ function goTarget() {
         profileId: profile.id,
         companyOrRole: input.companyOrRole,
         jobPostingUrl: input.jobPostingUrl,
+        interestAreas: input.interestAreas,
         globalInterest: input.globalInterest,
         requiredSkills: [],
         gapSkills: [],
@@ -143,6 +144,7 @@ async function runPipeline() {
       profile,
       target: currentTarget.companyOrRole,
       jobPostingUrl: currentTarget.jobPostingUrl,
+      interestAreas: currentTarget.interestAreas,
       onStage,
     });
     currentTarget.requiredSkills = result.requiredSkills;

@@ -672,7 +672,8 @@ ${gapList}${interestBlock}
   //   형식만 mjc.ac.kr 인 URL 과 실제로 열리는 페이지는 다르다.
   //   브라우저는 CORS 때문에 확인할 수 없으므로 서버 함수에 맡긴다.
   //   ★실패해도 추천을 막지 않는다★ — 검증은 부가 정보이지 전제 조건이 아니다.
-  const verified = await attachSourceStatus(recommendable);
+  // 링크 성격을 먼저 표시해야 검증 결과를 올바르게 낮출 수 있다
+  const verified = await attachSourceStatus(markLinkKind(recommendable));
 
   // broken 만 제외한다. unverified 는 "확인 필요"로 남긴다.
   const visible = verified.filter((p) => p.sourceStatus !== 'broken');
@@ -720,11 +721,27 @@ async function attachSourceStatus(list) {
 
     return list.map((p) => {
       const r = byUrl.get(p.sourceUrl);
+      let status = r?.status ?? null;
+      let error = r?.error ?? null;
+
+      // ★ "페이지가 열린다"와 "이 URL이 이 프로그램 것이다"는 다른 질문이다.
+      //
+      //   목록·첫 화면에는 프로그램 이름이 전부 실려 있어서 제목 매칭이 통과한다.
+      //   실측: mpu 15건이 첫 화면 하나를 공유하는데 전부 verified 로 나왔다.
+      //   그대로 두면 ★가장 잘못된 링크에 "공식 원문 확인됨" 배지가 붙는다.★
+      //   열리는 것 자체는 맞으므로 broken 은 아니다 — unverified 로 낮춘다.
+      if (status === 'verified' && (p.linkKind === 'list' || p.isSharedSource)) {
+        status = 'unverified';
+        error = p.linkKind === 'list'
+          ? '개별 공지가 아니라 목록 페이지입니다. 페이지에서 프로그램명을 찾아주세요.'
+          : '여러 프로그램이 함께 안내된 페이지입니다.';
+      }
+
       return {
         ...p,
-        sourceStatus: r?.status ?? null,
+        sourceStatus: status,
         sourceCheckedAt: r ? data.checkedAt : null,
-        sourceError: r?.error ?? null,
+        sourceError: error,
       };
     });
   } catch (e) {
@@ -735,6 +752,64 @@ async function attachSourceStatus(list) {
 
 function safeHost(url) {
   try { return new URL(url).hostname; } catch { return ''; }
+}
+
+// ─────────────────────────────────────────────
+//  링크가 "그 프로그램 하나"를 가리키는가
+//
+//  ★ 팀원 보고: "공식 공지 열기가 스마트케어에 있는 프로그램이면
+//     해당 프로그램 공지가 아니라 스마트케어 페이지로만 넘어간다"
+//
+//  실측 결과 수집 143건 중 63건(44%)이 개별 공지가 아니었다.
+//    mpu 16건 → URL 2개를 공유. 그중 15건이 첫 화면 하나를 가리킨다
+//    www ibuilder.do?menu_idx=3135 하나가 융복합 모듈전공 10개 트랙 전부의 출처
+//
+//  ★ 그리고 이게 더 위험하다 —
+//    verify-source 는 "페이지가 열리고 제목 낱말이 있으면" verified 를 준다.
+//    목록 페이지에는 프로그램 이름이 ★전부★ 실려 있으므로 제목 매칭이 통과한다.
+//    즉 ★가장 잘못된 링크에 가장 강한 신뢰 배지가 붙는다.★
+//    "페이지가 열린다"와 "이 URL이 이 프로그램 것이다"는 다른 질문이다.
+// ─────────────────────────────────────────────
+
+/** 게시판 엔진마다 상세 URL 규칙이 다르다. 식별자 유무까지 본다 */
+const DEEP_PATTERNS = [
+  /\/bbs\/data\/view\.do\?.*\bdata_idx=BD\d+/i,   // www · cls · inter (ibuilder)
+  /BdCm010D\.do\?.*\bBBS_NO=\d+/i,                // sanhak 게시판 상세
+  /WoUser0101V\.do\?.*\bWO_SEQ=\d+/i,             // sanhak 채용 상세
+  /_view\.html\?.*\bno=\d+/i,                     // rise · mrcc 정적 상세
+  /Notice(?:View|List)\.aspx\?.*\bnnum=\d+/i,     // mpu 공지 상세
+];
+
+/** 열리기는 하지만 그 프로그램을 찾을 수 없는 목록·첫 화면 */
+const LIST_PATTERNS = [
+  /\/bbs\/data\/list\.do\b/i,
+  /\/Main\/default\.aspx$/i,
+  /RecruitCalendar\.aspx$/i,
+  /mrcc\.mjc\.ac\.kr\/(?:volunteer\/program_previous|application\/notice)\.html$/i,
+  /^https?:\/\/[^/]+\/?$/i,                       // 도메인 루트
+];
+
+/** @returns {'notice'|'list'|'page'} */
+export function linkKind(url) {
+  const u = String(url || '');
+  if (DEEP_PATTERNS.some((p) => p.test(u))) return 'notice';
+  if (LIST_PATTERNS.some((p) => p.test(u))) return 'list';
+  return 'page';   // 여러 과정을 함께 안내하는 페이지
+}
+
+/**
+ * 같은 URL 을 여러 프로그램이 출처로 쓰면 그 프로그램 전용 페이지가 아니다.
+ * linkKind 만으로는 안 잡힌다 — ibuilder.do?menu_idx=3135 는 형식상 'page' 지만
+ * 실제로는 10개 트랙이 공유한다.
+ */
+export function markLinkKind(list) {
+  const count = new Map();
+  for (const p of list) count.set(p.sourceUrl, (count.get(p.sourceUrl) || 0) + 1);
+  return list.map((p) => ({
+    ...p,
+    linkKind: linkKind(p.sourceUrl),
+    isSharedSource: (count.get(p.sourceUrl) || 0) > 1,
+  }));
 }
 
 // ─────────────────────────────────────────────
@@ -919,6 +994,8 @@ ${listText}
       origin: m.origin || 'search', // 실시간 검색 / 수집 데이터 — 화면에 구분해 표시한다
 
       // P0-1 출처 검증 결과 (null = 검증하지 못함 → UI 는 배지를 그리지 않는다)
+      linkKind: m.linkKind ?? 'page',
+      isSharedSource: Boolean(m.isSharedSource),
       sourceStatus: m.sourceStatus ?? null,
       sourceCheckedAt: m.sourceCheckedAt ?? null,
       sourceError: m.sourceError ?? null,

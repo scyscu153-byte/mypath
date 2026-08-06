@@ -134,7 +134,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
 
 /**
  * @param {HTMLElement} mount
- * @param {{onSubmit: (target: {companyOrRole: string, jobPostingUrl: string|null, globalInterest: boolean, activityPreference: string|null}) => void, demoTargets?: Array}} handlers
+ * @param {{onSubmit: (target: {companyOrRole: string, jobPostingUrl: string|null, interestAreas: string|null, globalInterest: boolean, activityPreference: string|null}) => void, demoTargets?: Array}} handlers
  */
 export function renderTarget(mount, { onSubmit, demoTargets }) {
   mount.innerHTML = `
@@ -175,6 +175,13 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
           class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
       </label>
 
+      <label class="block">
+        <span class="text-sm text-slate-300">관심 분야 <span class="text-slate-500">(선택 — 전공과 관련 없어도 참여하고 싶은 분야)</span></span>
+        <input name="interestAreas" type="text" placeholder="예: 어학, 자격증, 봉사활동"
+          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+        <span class="mt-1 block text-xs text-slate-500">부족한 역량과 별개로, 이 분야 프로그램도 따로 찾아드려요.</span>
+      </label>
+
       <label class="flex items-center gap-2">
         <input name="globalInterest" type="checkbox" class="rounded bg-ink-800 border-ink-600" />
         <span class="text-sm text-slate-300">해외/글로벌 진출도 고려하고 있어요</span>
@@ -207,6 +214,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
     onSubmit({
       companyOrRole: String(fd.get('companyOrRole') || '').trim(),
       jobPostingUrl: String(fd.get('jobPostingUrl') || '').trim() || null,
+      interestAreas: String(fd.get('interestAreas') || '').trim() || null,
       globalInterest: fd.get('globalInterest') === 'on',
       activityPreference: fd.get('activityPreference') || null,
     });
