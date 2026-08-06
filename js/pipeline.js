@@ -529,7 +529,9 @@ ${gapList}
 
   // ★ 최종 방어선 — 출처가 mjc.ac.kr 이 아니면 버린다.
   //   프롬프트로 지시해도 명지대(mju) 정보가 섞이기 때문이다.
-  const matches = list
+  //   ★그리고 mjc.ac.kr 안에도 "재학생이 신청하는 프로그램"이 아닌 것이 많다.
+  //     호스트 검사만으로는 못 막는다 — isStudentProgram() 이 그것을 본다.
+  const matchesRaw = list
     .map((p) => ({
       gapSkill: String(p.gapSkill || '').trim(),
       programTitle: String(p.programTitle || '').trim(),
@@ -542,13 +544,17 @@ ${gapList}
       eventStartAt: p.eventStartAt || null,
       eventEndAt: p.eventEndAt || null,
     }))
-    .filter((p) => p.programTitle && isAllowedSource(p.sourceUrl))
+    .filter((p) => p.programTitle && isAllowedSource(p.sourceUrl));
+
+  const matches = matchesRaw
+    .filter((p) => isStudentProgram(p))
     .map((p) => ({
       ...p,
       sourceDomain: safeHost(p.sourceUrl),
     }));
 
-  const droppedForSource = list.length - matches.length;
+  const droppedForSource = list.length - matchesRaw.length;
+  const droppedForNotProgram = matchesRaw.length - matches.length;
 
   // ── P0-2. 모집 상태 판정 ──────────────────────
   //   ★순서가 중요하다★ — 판정을 ★먼저★ 하고, 살아남은 것을 기준으로 보충한다.
@@ -626,6 +632,7 @@ ${gapList}
     removedSources: removed,
     droppedForSource,
     droppedForSchedule,
+    droppedForNotProgram,
     droppedForBrokenLink,
     supplementedCount: supplemented.filter(
       (s) => visible.some((v) => v.programTitle === s.programTitle),
@@ -677,6 +684,87 @@ async function attachSourceStatus(list) {
 
 function safeHost(url) {
   try { return new URL(url).hostname; } catch { return ''; }
+}
+
+// ─────────────────────────────────────────────
+//  "재학생이 신청하는 프로그램"인지 판별한다
+//
+//  ★ 호스트 검사만으로는 못 막는다.
+//    mjc.ac.kr 안에도 프로그램이 아닌 것이 아주 많다.
+//
+//    실측으로 확인된 것들:
+//      · 「실습세미나(유아교육과)」        → 학과 교과목이다. 신청하는 게 아니다
+//      · edu.mjc.ac.kr 평생교육본부 과정   → 성인 대상 유료과정 (재학생 아님)
+//      · 「[게임부트캠프] Unity 개발자…」   → 실체는 외부 KDT 광고(엘리스트랙)
+//      · 대학요람 PDF, 학칙, 입시요강
+//
+//    프롬프트로 "제외해라"라고 지시해봤지만 계속 통과했다.
+//    mju 오염·마감 프로그램·깨진 링크를 코드로 막았던 것과 같은 방식으로 처리한다.
+// ─────────────────────────────────────────────
+
+/** 재학생 대상이 아닌 하위 도메인 */
+const NON_STUDENT_HOSTS = [
+  'edu.mjc.ac.kr',    // 평생교육본부 — 성인 대상 유료과정
+  'ipsi.mjc.ac.kr',   // 입시
+  'admission.mjc.ac.kr',
+];
+
+/**
+ * 제목·요약에 있으면 "신청하는 프로그램"이 아니라고 본다.
+ *
+ * ★ 처음에는 반대로 만들었다 — "신청·모집 같은 말이 있어야 통과".
+ *   그랬더니 수집 143건 중 46%만 남고 ★진짜 프로그램까지 죽었다★
+ *   (마이크로전공과정·현장실습학기제·취업동아리·잡카페 상담 …).
+ *   정당한 프로그램도 제목에 신청이라는 말이 없는 경우가 많기 때문이다.
+ *
+ *   그래서 ★아는 불순물만 빼고 나머지는 통과★시킨다.
+ *   놓치는 것보다 멀쩡한 것을 죽이는 쪽이 더 나쁘다.
+ */
+const NOT_A_PROGRAM = [
+  // 학과·교과 안내 (초윤님이 보고한 "재학생 대상인데 학과를 추천" 케이스)
+  '교과목', '커리큘럼', '이수체계', '학과 소개', '학과소개', '학과 안내',
+  '전공 소개', '전공소개', '교수진', '졸업요건', '전공 교육과정', '학과 교육과정',
+  // 규정·문서
+  '대학요람', '학칙', '요람', '시행세칙', '_college_info',
+  // 입시
+  '모집요강', '입학 안내', '신입생 모집', '수시 모집', '정시 모집', '편입학',
+  // 교직원 채용 (학생 대상이 아님)
+  '교직원 채용', '직원 채용', '교원 초빙', '조교 채용',
+  // 외부 기관 광고 — mjc 게시판에 올라오지만 교내 프로그램이 아니다
+  'kdt', '부트캠프', '국비지원', '내일배움', '엘리스', '패스트캠퍼스', '이젠아카데미',
+];
+
+/**
+ * "재학생이 신청하는 교내 프로그램"으로 볼 수 있는가.
+ * 확실히 아닌 것만 걸러낸다. 애매하면 통과시킨다.
+ *
+ * @param {{programTitle:string, summary:string, sourceUrl:string}} p
+ * @returns {boolean}
+ */
+/** 이런 말이 있으면 학과가 운영하더라도 신청 프로그램으로 본다 */
+const PROGRAM_WORDS = [
+  '프로그램', '인턴십', '실습학기', '캠프', '특강', '경진대회', '공모',
+  '모집', '신청', '멘토링', '튜터링', '아카데미', '워크숍', '워크샵', '연수',
+];
+
+export function isStudentProgram(p) {
+  const host = safeHost(p.sourceUrl).toLowerCase();
+  if (NON_STUDENT_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return false;
+
+  const title = String(p.programTitle || '').trim();
+
+  // ★ 제목만 본다. 설명문에까지 적용하면 멀쩡한 것이 죽는다.
+  //   실측: 「표준·자율 현장실습학기제」의 설명에 "교과목"이 들어 있어 제외됐고,
+  //        「복수학위 과정」은 설명의 "졸업요건" 때문에 제외됐다.
+  if (NOT_A_PROGRAM.some((w) => title.toLowerCase().includes(w.toLowerCase()))) return false;
+
+  // 학과명이 괄호로 끝에 붙은 형태 — 「실습세미나(유아교육과)」
+  // ★단, 프로그램을 뜻하는 말이 있으면 학과가 운영하는 정식 프로그램이다.
+  //   「연계 산업체 인턴십 프로그램(커뮤니케이션디자인과)」 같은 것을 죽이면 안 된다.
+  if (/\([가-힣]{2,12}(?:학과|과)\)\s*$/.test(title)
+      && !PROGRAM_WORDS.some((w) => title.includes(w))) return false;
+
+  return true;
 }
 
 // ─────────────────────────────────────────────
@@ -875,13 +963,13 @@ export async function run({ profile, target, jobPostingUrl, onStage = () => {} }
   // 3단계
   const {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
-    droppedForSchedule, droppedForBrokenLink,
+    droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   } = await step(STAGE.PROGRAM_SEARCH,
     () => searchPrograms(gapSkills),
     '교내 프로그램을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.PROGRAM_SEARCH, 'done', {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
-    droppedForSchedule, droppedForBrokenLink,
+    droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   });
 
   // 4단계
@@ -900,6 +988,7 @@ export async function run({ profile, target, jobPostingUrl, onStage = () => {} }
       removedSources,
       droppedForSource,      // mjc.ac.kr 출처가 아니라서 제외
       droppedForSchedule,    // 이미 끝난 것이 명백해서 제외 (P0-2)
+      droppedForNotProgram,  // mjc 안에 있지만 재학생 신청 프로그램이 아니라서 제외
       droppedForBrokenLink,  // 원문이 실제로 열리지 않아서 제외 (P0-1)
     },
     // 실시간 검색이 못 메운 갭을 수집 데이터로 몇 건 보충했는지
