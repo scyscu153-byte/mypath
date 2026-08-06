@@ -57,7 +57,11 @@ export async function suggestTargets(department, { grade } = {}) {
  * @param {string} [opts.jobPostingUrl]  실제 채용공고 URL (선택 — mock에서는 표시만 하고 검색엔 안 씀)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]
  */
-export async function run({ profile, target, jobPostingUrl, interestAreas, onStage = () => {} }) {
+export async function run({
+  profile, target, jobPostingUrl, interestAreas,
+  includeExternal = false,
+  onStage = () => {},
+}) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   emit(STAGE.REQUIRED_SKILLS, 'start');
@@ -109,7 +113,35 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     sourceCheckedAt: m.sourceCheckedAt || '2026-08-06T21:00:00+09:00',
     sourceError: m.sourceError || null,
   }));
-  emit(STAGE.PERSONA_REVIEW, 'done', matches);
+  // ★모의 모드도 교외 활동을 알아야 한다.★
+  //   리허설을 ?mock=1 로 하는데 여기서 새 기능이 한 번도 안 뜨면,
+  //   시연에서 처음 보게 된다. 화면 확인용 가짜 항목을 하나 붙인다.
+  const externalMatches = includeExternal ? [{
+    id: 'mock-ext-1',
+    gapSkill: matches[0]?.gapSkill || 'Unity',
+    programTitle: '[모의] 전국 대학생 게임 개발 공모전',
+    summary: '팀 단위로 3개월간 게임을 만들어 제출하는 공모전 (모의 데이터)',
+    sourceUrl: 'https://www.example-contest.co.kr/notice/1',
+    sourceDomain: 'www.example-contest.co.kr',
+    host: '한국콘텐츠진흥원',
+    scope: 'external',
+    origin: 'external',
+    postedAt: '2026-07-20',
+    availability: 'open',
+    dateConfidence: 'verified',
+    applicationStartAt: '2026-07-20',
+    applicationEndAt: '2026-09-30',
+    eventStartAt: null, eventEndAt: null,
+    // ★교외에는 출처 검증 배지가 붙지 않는다★ — 실제 동작과 같게 둔다
+    sourceStatus: null, sourceCheckedAt: null, sourceError: null,
+    personaScores: matches[0]?.personaScores || {},
+    disagreement: 0.2,
+    isCompleted: false,
+    reviewedBy: 4, failedPersonas: [],
+  }] : [];
+
+  const allMatches = [...matches, ...externalMatches];
+  emit(STAGE.PERSONA_REVIEW, 'done', allMatches);
 
   // ★ 반환 모양을 pipeline.js 와 정확히 맞춘다.
   //   dev-test.html 이 result.supplement / result.review 를 읽으므로
@@ -118,7 +150,7 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     target,
     requiredSkills,
     gapSkills,
-    matches,
+    matches: allMatches,
     filtered: {
       removedSources: ['https://example.mju.ac.kr/dropped'],
       droppedForSource: 1,
@@ -126,6 +158,8 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
       droppedForBrokenLink: 1,
     },
     supplement: { count: 1, collectedAt: '2026-08-06' },
+    // pipeline.js 와 모양을 맞춘다 — 화면이 이 값으로 세 상태를 가른다
+    external: { requested: includeExternal, failed: false, count: externalMatches.length },
     review: { personaCount: 4, failed: [] },
   };
 }
