@@ -403,6 +403,17 @@ ${JSON_ONLY}`,
   const raw = parseJson(text, []);
   const list = Array.isArray(raw) ? raw : [];
 
+  // 0건으로 끝나면 파이프라인이 여기서 멈춘다. 원인을 구분해서 남긴다 —
+  // 모델이 빈 답을 준 것인지, 우리가 파싱을 못 한 것인지 로그 없이는 알 수 없다.
+  if (!list.length) {
+    console.warn('[1단계] 요구 역량 0건', {
+      목표: target,
+      응답길이: (text || '').length,
+      citations: citations.length,
+      응답앞부분: (text || '').slice(0, 200),
+    });
+  }
+
   // 출처가 없는 항목은 citations 에서 보충한다 (인덱스가 안 맞을 수 있어 citations[0] 도 최후 수단으로 둔다).
   // 그래도 citations 자체가 아예 없으면(= 검색이 근거를 하나도 못 찾음) 그 항목은 뺀다.
   return list
@@ -417,7 +428,17 @@ ${JSON_ONLY}`,
       //   아래 프로그램 카드(sourceUrl)에는 isAllowedSource 방어가 있는데 여기만 빠져 있었다.
       sourceUrl: safeHttpUrl(s.sourceUrl || citations[i] || citations[0] || ''),
     }))
-    .filter((s) => s.name && s.sourceUrl);   // 빈 문자열이 된 항목은 여기서 걸러진다
+    // ★ 이름만 있으면 남긴다. 출처가 없다고 항목을 버리지 않는다.
+    //
+    //   전에는 `s.name && s.sourceUrl` 이었다. 그런데 시스템 프롬프트가 이미 모델에게
+    //   "출처를 확인할 수 없는 역량은 답에서 빼라"고 시키고 있어서, 여기서 한 번 더 거르면
+    //   ★이중 필터★가 된다. "데이터 분석가"로 실측했더니 요구 역량이 0건이 되어
+    //   파이프라인이 1단계에서 멈췄다 (2회 재현, 각 28크레딧).
+    //
+    //   요구 역량은 "교내에 이런 프로그램이 있다"는 주장이 아니라 분석의 입력값이다.
+    //   출처 원칙은 ★프로그램 추천★에 적용되는 것이지, 분석 자체를 죽이라는 뜻이 아니다.
+    //   출처가 없으면 "근거 보기" 링크만 안 뜬다 (ui.js 가 이미 조건부로 그린다).
+    .filter((s) => s.name);
 }
 
 /**
