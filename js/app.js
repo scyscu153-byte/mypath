@@ -264,7 +264,10 @@ function goProfile() {
       currentMatches = [];
       currentMeta = {};
       updateCreditBadge();
-      injectHeaderControls();   // "내 계정 사용 중" 표시를 되돌린다
+      // ★ injectHeaderControls() 로는 부족하다 — 버튼이 이미 있으면 만들지 않고 끝나서
+      //   키를 지웠는데도 헤더에 "내 계정 사용 중"이 그대로 남는다.
+      //   라벨을 실제로 다시 읽는 refreshKeyLabel() 을 불러야 한다.
+      refreshKeyLabel();
       goOnboarding();
     },
   });
