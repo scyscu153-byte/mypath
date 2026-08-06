@@ -139,10 +139,14 @@ export function judgeAvailability(p, today = new Date()) {
   }
 
   // ── 여기까지 왔으면 확인이 안 된 것이다. 단정하지 않는다. ──
-  //   게시일이 아주 오래된 것은 낮은 확신으로 '지난 것 같다'고만 표시한다.
+  //   게시일이 오래된 것은 낮은 확신으로 '지난 것 같다'고만 표시한다.
+  //   기준을 365일 → 120일(약 4개월)로 좁혔다 (개선사항.md v2 검토, 2026-08-06).
+  //   ★단, 이 분기는 applicationEndAt/eventEndAt 등 명시적 날짜가 전혀 없을 때만 탄다★
+  //   (위에서 이미 걸러짐) — 지금도 열려 있는 상시 프로그램이 게시만 오래됐다는 이유로
+  //   잘못 제외되는 것은 이 분기가 아니라 명시적 날짜/ONGOING_KEYWORDS 로 막는다.
   if (posted) {
     const days = Math.floor((t - posted) / 86400000);
-    if (days > 365) {
+    if (days > 120) {
       return { availability: 'closed', dateConfidence: 'estimated', reason: `게시일이 ${days}일 전` };
     }
   }
@@ -690,6 +694,14 @@ export async function reviewByPersonas(matches, profile, target) {
 다른 관점(비용, 학점, 시장성 등)은 네 담당이 아니다. 네 관점에서만 평가해라.
 솔직하게 평가해라. 낮은 점수를 주는 것도 정상이다.
 모두에게 높은 점수를 주면 평가의 의미가 없다.
+
+comment 를 쓸 때는 (점수 자체는 절대 봐주지 말고, comment 어조만):
+- "부족하다", "미흡하다", "적합하지 않다" 같은 단정적 지적 대신,
+  이 프로그램에 참여하면 얻을 수 있는 경험·성장을 중심으로 설명해라.
+- 낮은 점수를 줄 때도 "왜 지금 이 학생에게는 우선순위가 낮은지"를
+  담백하게 설명하되, 학생을 평가하는 말투가 아니라 프로그램을 소개하는 말투를 써라.
+- 점수를 후하게 주라는 뜻이 아니다. 점수는 계속 정직하고 갈릴 수 있게 유지해라
+  (네 관점에서 안 맞으면 낮은 점수를 그대로 줘라). 문장 톤만 부드럽게 해라.
 ${JSON_ONLY}`,
           user: `[학생] ${profile.grade}학년 ${profile.department}
 [목표] ${target}
