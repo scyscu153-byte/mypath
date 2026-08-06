@@ -69,7 +69,7 @@ export default async function handler(req, res) {
 /** @returns {Promise<{url:string, status:'verified'|'unverified'|'broken', httpStatus:number|null, finalUrl:string|null, error:string|null}>} */
 async function verifyOne(url, title) {
   const out = (status, extra = {}) => ({
-    url, status, httpStatus: null, finalUrl: null, error: null, ...extra,
+    url, status, httpStatus: null, finalUrl: null, bytesRead: null, error: null, ...extra,
   });
 
   let parsed;
@@ -112,18 +112,23 @@ async function verifyOne(url, title) {
     }
 
     const html = await readSome(r);
+    // 진단용 — "못 읽은 것"과 "읽었는데 제목이 없는 것"은 원인이 다르다
+    const bytesRead = html.length;
 
     // 200 이지만 "자료 없음" 페이지인 경우
     const text = stripTags(html);
     if (NOT_FOUND_MARKERS.some((m) => text.includes(m))) {
-      return out('broken', { httpStatus, finalUrl, error: '페이지가 자료 없음을 표시함' });
+      return out('broken', { httpStatus, finalUrl, bytesRead, error: '페이지가 자료 없음을 표시함' });
     }
 
     // 제목의 핵심어가 페이지에 있는지
     if (titleMatches(title, text, html)) {
-      return out('verified', { httpStatus, finalUrl });
+      return out('verified', { httpStatus, finalUrl, bytesRead });
     }
-    return out('unverified', { httpStatus, finalUrl, error: '페이지에서 프로그램 제목을 확인하지 못함' });
+    return out('unverified', {
+      httpStatus, finalUrl, bytesRead,
+      error: '페이지에서 프로그램 제목을 확인하지 못함',
+    });
   } catch (e) {
     const aborted = e?.name === 'AbortError';
     return out(
