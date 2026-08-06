@@ -127,6 +127,7 @@ async function verifyOne(url, title) {
     }
     return out('unverified', {
       httpStatus, finalUrl, bytesRead,
+      pageTitle: (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').trim().slice(0, 80),
       error: '페이지에서 프로그램 제목을 확인하지 못함',
     });
   } catch (e) {
