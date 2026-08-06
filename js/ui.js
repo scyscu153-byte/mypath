@@ -507,7 +507,9 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
       <h2 class="text-xl font-bold">"${esc(target.companyOrRole)}"에 필요한 걸 채워드릴게요</h2>
     </div>
     <p class="text-sm text-slate-400 mb-1">${DISCLAIMER.ELIGIBILITY}</p>
-    <p class="text-xs text-slate-500 mb-6">${esc(sourceNote)}</p>
+    <p class="text-xs text-slate-500 mb-2">${esc(sourceNote)}</p>
+    <!-- 판별의 한계를 결과 위에 먼저 밝힌다. 발견한 뒤에 알게 되면 신뢰가 깎인다. -->
+    <p class="text-xs text-amber-400/80 mb-6">⚠ ${DISCLAIMER.PURITY}</p>
 
     <div class="space-y-8">
       ${byGap.size === 0 ? `
