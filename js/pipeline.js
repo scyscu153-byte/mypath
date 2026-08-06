@@ -939,7 +939,9 @@ ${JSON_ONLY}`,
 [부족한 역량]
 ${gapList}${interest ? `\n[관심 분야] ${interest}` : ''}
 
-- 전체 3~6개 ─ 상한이지 채워야 할 목표가 아니다.
+- 전체 3~4개 ─ 상한이지 채워야 할 목표가 아니다.
+  ★적게, 빨리 답해라.★ 이 검색은 50초 안에 끝나야 한다.
+  더 찾으려고 오래 끌면 학생은 아무것도 못 받는다.
   ★관련 있는 걸 못 찾았으면 억지로 채우지 말고 적게 내라.★
 - ★공모전·대외활동을 먼저 채우고, 채용공고는 최대 1건까지만 넣어라.★
   이 학생은 1학년이다. 지금 필요한 것은 이력서에 쓸 활동이지 취업 공고가 아니다.
@@ -948,7 +950,8 @@ ${gapList}${interest ? `\n[관심 분야] ${interest}` : ''}
 
 형식:
 [{"gapSkill":"어떤 역량을 메우는지","programTitle":"활동명","summary":"한 줄 설명","sourceUrl":"출처","host":"주관 기관","postedAt":"게시일 또는 null","applicationStartAt":null,"applicationEndAt":null,"eventStartAt":null,"eventEndAt":null}]`,
-    maxTokens: 2000,
+    // 3~4건이면 1,200토큰으로 충분하다. 넉넉히 잡으면 그만큼 오래 생성한다.
+    maxTokens: 1200,
   });
 
   const raw = parseJson(text, []);
@@ -1506,7 +1509,28 @@ export async function run({
     '갭 분석 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.GAP_ANALYSIS, 'done', gapSkills);
 
-  // 3단계
+  // 3단계 · 교내 검색 + (켰다면) 교외 검색
+  //
+  //   ★나란히 돌린다.★ 둘 다 gapSkills 만 있으면 되고 서로를 기다릴 이유가 없다.
+  //   처음엔 줄을 세웠는데, 실측해 보니 교외 검색이 50초 상류 타임아웃에 걸렸다.
+  //   교외는 site: 제한이 없어 검색 범위가 훨씬 넓어서 교내보다 오래 걸린다.
+  //   순차로 두면 그 시간이 전체 소요에 그대로 얹힌다 —
+  //   ★켠 사람만 손해 보는 게 아니라 화면 앞에서 기다리는 시간이 통째로 길어진다.★
+  //
+  //   ★교외는 실패해도 전체를 멈추지 않는다.★ 이건 덤이지 본체가 아니다.
+  //   교외가 안 됐다고 교내 결과까지 못 보게 되면 더 나쁘다.
+  //   그래서 step() 을 쓰지 않고 여기서 직접 삼킨다.
+  let externalFailed = false;
+  const externalPromise = includeExternal
+    ? searchExternalActivities(gapSkills, target, interestAreas)
+        .then((r) => r.matches)
+        .catch((e) => {
+          externalFailed = true;
+          console.warn('[교외 활동 검색 실패 — 교내 결과는 그대로 보여준다]', e?.message || e);
+          return [];
+        })
+    : Promise.resolve([]);
+
   const {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
@@ -1520,22 +1544,8 @@ export async function run({
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   });
 
-  // 3-B단계 · 교외 활동 (학생이 켰을 때만)
-  //
-  //   ★실패해도 전체를 멈추지 않는다.★ 이건 덤이지 본체가 아니다.
-  //   교외 검색이 안 됐다고 교내 결과까지 못 보게 되면 더 나쁘다.
-  //   그래서 step() 을 쓰지 않고 여기서 직접 삼킨다.
-  let externalMatches = [];
-  let externalFailed = false;
-  if (includeExternal) {
-    try {
-      const ext = await searchExternalActivities(gapSkills, target, interestAreas);
-      externalMatches = ext.matches;
-    } catch (e) {
-      externalFailed = true;
-      console.warn('[교외 활동 검색 실패 — 교내 결과는 그대로 보여준다]', e?.message || e);
-    }
-  }
+  // 교내 쪽이 끝난 시점에는 교외도 거의 끝나 있다 (같이 출발했으므로)
+  const externalMatches = await externalPromise;
 
   // 4단계
   //   교외 항목도 같은 4명에게 평가받는다. 교내와 잣대가 다르면
