@@ -120,10 +120,10 @@ MyPath     :  목표 →  (요구 역량)      →  내가 맞춰야 할 것을 
 
 ## 5. 기술 구성
 
-- **프론트엔드**: React + Vite + Tailwind CSS
-- **AI**: 명지전문대학 팩트챗 게이트웨이 (OpenAI 호환 API)
+- **프론트엔드**: Vanilla HTML/CSS/JS (빌드 도구 없음) + Tailwind CDN
+- **AI**: 명지전문대학 팩트챗 게이트웨이 (OpenAI 호환 API) — Vercel Serverless Function으로 프록시
 - **저장**: 브라우저 localStorage (서버 없음 — 개인 데이터가 외부에 저장되지 않음)
-- **배포**: Vercel
+- **배포**: Vercel (정적 파일 + Serverless Function)
 
 ### 모델 선택 — 작업에 따라 다른 모델을 사용합니다
 
@@ -145,22 +145,23 @@ MyPath     :  목표 →  (요구 역량)      →  내가 맞춰야 할 것을 
 
 ## 6. 실행 방법
 
+빌드 도구가 없어 별도 설치 없이 바로 열어볼 수 있습니다. 다만 API 프록시(Serverless Function)를 로컬에서 함께 확인하려면 Vercel CLI가 필요합니다.
+
 ```bash
 git clone https://github.com/scyscu153-byte/mypath.git
 cd mypath
-npm install
 
 cp .env.example .env
 # .env 파일을 열어 본인의 팩트챗 API 키를 입력하세요
 
-npm run dev
+npx vercel dev
 ```
 
 ### API 키 발급
 명지전문대학 팩트챗(`mjc.factchat.bot`) → 좌측 하단 **API Gateway** 메뉴
 
 > ⚠️ **API 키는 절대 저장소에 커밋하지 마세요.**
-> `.env` 파일은 `.gitignore`에 등록되어 있습니다.
+> `.env` 파일은 `.gitignore`에 등록되어 있고, 키는 `api/gateway.js`(서버 함수) 안에서만 사용됩니다 — 브라우저로는 전달되지 않습니다.
 
 ---
 
@@ -168,8 +169,20 @@ npm run dev
 
 | 이름 | 학과 | 역할 |
 |---|---|---|
-| *(작성 예정)* | | |
-| *(작성 예정)* | | |
+| 유초윤 | AI게임소프트웨어학과 | 프론트엔드 · UI · 발표 |
+| 신찬영 | *(확인 필요)* | 백엔드 · AI 연동 |
+
+### 작업 방식 — 데이터 계약 우선, mock 기반 병렬 개발
+
+AI 파이프라인(요구역량 검색 → 갭 분석 → 프로그램 검색 → 4모델 평가)은 순차 의존이라 한 사람이 이어서 구현합니다. 대신 결과물의 데이터 모양(`Profile`/`Target`/`ProgramMatch`, `js/types.js`)을 먼저 고정해두고, 프론트엔드는 이 모양과 똑같은 가짜 데이터로 화면을 먼저 완성한 뒤 실제 로직으로 교체하는 방식으로 병렬 진행했습니다.
+
+```
+index.html      뼈대 (초기 합의 후 고정)
+js/types.js      데이터 계약 (공용)
+js/ui.js          화면 · 렌더링 (유초윤)
+js/pipeline.js    AI 파이프라인 (신찬영)
+api/gateway.js    게이트웨이 프록시, API 키 보관 (신찬영)
+```
 
 ---
 
