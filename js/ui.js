@@ -134,7 +134,7 @@ export function renderOnboarding(mount, { onSubmit, demoProfile }) {
 
 /**
  * @param {HTMLElement} mount
- * @param {{onSubmit: (target: {companyOrRole: string, globalInterest: boolean, activityPreference: string|null}) => void, demoTargets?: Array}} handlers
+ * @param {{onSubmit: (target: {companyOrRole: string, jobPostingUrl: string|null, globalInterest: boolean, activityPreference: string|null}) => void, demoTargets?: Array}} handlers
  */
 export function renderTarget(mount, { onSubmit, demoTargets }) {
   mount.innerHTML = `
@@ -169,6 +169,12 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
         <span id="target-hint" class="mt-1 block text-xs text-slate-500"></span>
       </label>
 
+      <label class="block">
+        <span class="text-sm text-slate-300">실제 채용공고 링크 <span class="text-slate-500">(선택 — 넣으면 그 공고를 직접 근거로 분석해요)</span></span>
+        <input name="jobPostingUrl" type="url" placeholder="예: https://careers.example.com/jobs/1234"
+          class="mt-1 w-full rounded bg-ink-800 border border-ink-600 px-3 py-2 text-sm" />
+      </label>
+
       <label class="flex items-center gap-2">
         <input name="globalInterest" type="checkbox" class="rounded bg-ink-800 border-ink-600" />
         <span class="text-sm text-slate-300">해외/글로벌 진출도 고려하고 있어요</span>
@@ -200,6 +206,7 @@ export function renderTarget(mount, { onSubmit, demoTargets }) {
     const fd = new FormData(e.target);
     onSubmit({
       companyOrRole: String(fd.get('companyOrRole') || '').trim(),
+      jobPostingUrl: String(fd.get('jobPostingUrl') || '').trim() || null,
       globalInterest: fd.get('globalInterest') === 'on',
       activityPreference: fd.get('activityPreference') || null,
     });
@@ -271,9 +278,20 @@ export function renderProgress(mount) {
       doneIcon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-brand-500 flex items-center justify-center text-[10px] text-white">✓</span>`;
 
       if (event.stage === STAGE.REQUIRED_SKILLS && Array.isArray(event.data)) {
+        // 역량 이름만 나열하면 "이거 출처 있는 거 맞아?"라는 질문에 답할 수 없다.
+        // 실제 채용공고 URL을 눈으로 확인할 수 있게 링크로 건다.
         detail.insertAdjacentHTML(
           'beforeend',
-          `<p><strong class="text-slate-300">요구 역량:</strong> ${event.data.map((s) => esc(s.name)).join(', ')}</p>`
+          `<p><strong class="text-slate-300">요구 역량:</strong></p>
+           <ul class="mt-1 space-y-0.5">
+             ${event.data
+               .map(
+                 (s) => `<li>${esc(s.name)}
+                   ${s.sourceUrl ? `<a href="${esc(s.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">(근거 보기 ↗)</a>` : ''}
+                 </li>`
+               )
+               .join('')}
+           </ul>`
         );
       }
       if (event.stage === STAGE.GAP_ANALYSIS && Array.isArray(event.data)) {
@@ -380,19 +398,32 @@ function programCard(match) {
  * @param {import('./types.js').Target} target
  * @param {import('./types.js').ProgramMatch[]} matches
  * @param {{onComplete: (match: import('./types.js').ProgramMatch) => void, onNewTarget: () => void}} handlers
+ * @param {{droppedForSource?: number, supplementedCount?: number}} [meta]  검색이 실제로 무엇을 거르고 보충했는지
  */
-export function renderReport(mount, target, matches, { onComplete, onNewTarget }) {
+export function renderReport(mount, target, matches, { onComplete, onNewTarget }, meta = {}) {
   const byGap = new Map();
   for (const m of matches) {
     if (!byGap.has(m.gapSkill)) byGap.set(m.gapSkill, []);
     byGap.get(m.gapSkill).push(m);
   }
 
+  // ★ "출처가 확인되지 않아 표시하지 않습니다"를 매번 똑같이 띄우면,
+  //   실제로 몇 건이 걸러졌는지 모른 채 "그럼 왜 출처 없는 걸 쓰냐"는 의문만 남는다.
+  //   pipeline.js가 이미 세고 있는 실제 수치(droppedForSource·supplementedCount)를 그대로 보여준다 —
+  //   0건이면 "필터링 없음"이라고 정직하게 적는다.
+  const dropped = meta.droppedForSource ?? 0;
+  const supplemented = meta.supplementedCount ?? 0;
+  const sourceNote = [
+    dropped > 0 ? `이번 검색에서 출처 없는 항목 ${dropped}건을 제외했습니다` : '이번 검색은 전부 출처가 확인된 항목입니다',
+    supplemented > 0 ? `실시간 검색이 못 채운 ${supplemented}건은 직접 수집한 데이터로 보충했습니다` : '',
+  ].filter(Boolean).join(' · ');
+
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-1">
       <h2 class="text-xl font-bold">"${esc(target.companyOrRole)}"에 필요한 걸 채워드릴게요</h2>
     </div>
-    <p class="text-sm text-slate-400 mb-6">${DISCLAIMER.ELIGIBILITY} · ${DISCLAIMER.NO_SOURCE}</p>
+    <p class="text-sm text-slate-400 mb-1">${DISCLAIMER.ELIGIBILITY}</p>
+    <p class="text-xs text-slate-500 mb-6">${esc(sourceNote)}</p>
 
     <div class="space-y-8">
       ${byGap.size === 0 ? `

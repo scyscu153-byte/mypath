@@ -47,6 +47,15 @@ const NO_JUDGMENT_GUARD = `
 const JSON_ONLY = `
 JSON만 출력해라. 설명, 인사말, 마크다운 코드블록 표시를 붙이지 마라.`.trim();
 
+/**
+ * 오늘 날짜를 프롬프트에 박아 넣는다.
+ * "최근 것을 우선해라"만으로는 신청·행사 기간이 이미 끝난 게 명백한 항목도 섞여 나왔다
+ * (사용자 실측에서 발견). 기준 날짜를 주면 모델이 스스로 종료 여부를 판단할 수 있다.
+ */
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // ─────────────────────────────────────────────
 //  JSON 파싱 — LLM 출력은 깨끗하지 않다
 // ─────────────────────────────────────────────
@@ -139,21 +148,29 @@ function extractJsonChunks(s) {
 
 /**
  * @param {string} target  목표 (기업명 · 직군 · 분야 무엇이든)
+ * @param {string} [jobPostingUrl]  사용자가 직접 붙여넣은 실제 채용공고 URL (선택)
  * @returns {Promise<import('./types.js').RequiredSkill[]>}
  */
-export async function searchRequiredSkills(target) {
+export async function searchRequiredSkills(target, jobPostingUrl) {
+  // 사용자가 실제 채용공고 링크를 넣었다면, 일반 검색 대신 그 공고를 직접 근거로 쓴다.
+  // "왜 출처 없는 자료를 쓰는가"라는 피드백에 대한 가장 직접적인 답 — 사용자가 준 원문을 그대로 인용한다.
+  const postingHint = jobPostingUrl
+    ? `\n사용자가 실제로 보고 있는 채용공고 링크를 제공했다: ${jobPostingUrl}\n이 URL에 접속해서 내용을 확인하고, 여기 명시된 요구 역량을 최우선으로 반영해라. 이 공고를 sourceUrl로 인용해라.`
+    : '';
+
   const { text, citations } = await callModel({
     task: TASK.SEARCH_REQUIRED_SKILLS,
     system: `너는 채용 시장을 조사하는 도우미다.
 실제 채용공고와 기업 채용 페이지를 검색해서 요구 역량을 추출한다.
 각 역량마다 근거가 된 출처 URL을 반드시 붙인다.
+출처를 확인할 수 없는 역량은 답에서 빼라. "출처 없음"으로 채우지 마라.
 추측하지 말고 검색으로 확인된 것만 답해라.
 ${JSON_ONLY}`,
-    user: `"${target}"의 신입 채용에서 공통적으로 요구하는 역량을 찾아줘.
+    user: `"${target}"의 신입 채용에서 공통적으로 요구하는 역량을 찾아줘.${postingHint}
 
 - 기술 스택, 도구, 경험 위주로 5~8개
 - 추상적인 것("성실함", "열정") 말고 구체적인 것으로
-- 각 항목에 왜 필요한지 한 줄 근거와 출처 URL
+- 각 항목에 왜 필요한지 한 줄 근거와, 그 근거가 된 실제 채용공고/기업 페이지 출처 URL
 
 형식:
 [{"name":"역량명","reason":"왜 필요한지 한 줄","sourceUrl":"출처"}]`,
@@ -163,14 +180,15 @@ ${JSON_ONLY}`,
   const raw = parseJson(text, []);
   const list = Array.isArray(raw) ? raw : [];
 
-  // 출처가 없는 항목은 citations 에서 보충한다
+  // 출처가 없는 항목은 citations 에서 보충한다 (인덱스가 안 맞을 수 있어 citations[0] 도 최후 수단으로 둔다).
+  // 그래도 citations 자체가 아예 없으면(= 검색이 근거를 하나도 못 찾음) 그 항목은 뺀다.
   return list
     .map((s, i) => ({
       name: String(s.name || '').trim(),
       reason: String(s.reason || '').trim(),
       sourceUrl: s.sourceUrl || citations[i] || citations[0] || '',
     }))
-    .filter((s) => s.name);
+    .filter((s) => s.name && s.sourceUrl);
 }
 
 // ─────────────────────────────────────────────
@@ -241,10 +259,13 @@ ${required.map((r) => `- ${r.name}: ${r.reason}`).join('\n')}
  */
 export async function searchPrograms(gaps) {
   const gapList = gaps.map((g) => `- ${g.name} (${g.reason})`).join('\n');
+  const today = todayISO();
 
   const { text, citations } = await callModel({
     task: TASK.SEARCH_PROGRAMS,
     system: `너는 명지전문대학의 교내 프로그램을 찾아주는 도우미다.
+오늘은 ${today}이다. 신청 기간이나 진행 기간이 이미 끝난 것이 명백한 프로그램은 제외해라.
+모집 전이거나 진행 중이거나 상시 모집이면 포함해라.
 
 ${DOMAIN_GUARD}
 
@@ -260,7 +281,7 @@ ${NO_JUDGMENT_GUARD}
 - mrcc.mjc.ac.kr   지역협력·리빙랩
 - edu.mjc.ac.kr    평생교육원
 ${JSON_ONLY}`,
-    user: `아래 역량을 기를 수 있는 명지전문대학 교내 프로그램을 찾아줘.
+    user: `아래 역량을 기를 수 있는 명지전문대학 교내 프로그램을 찾아줘. 오늘 날짜는 ${today}이다.
 
 [부족한 역량]
 ${gapList}
@@ -486,9 +507,10 @@ function disagreementOf(scores) {
  * @param {Object} opts
  * @param {import('./types.js').Profile} opts.profile
  * @param {string} opts.target
+ * @param {string} [opts.jobPostingUrl]  사용자가 직접 붙여넣은 실제 채용공고 URL (선택)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]  진행 콜백
  */
-export async function run({ profile, target, onStage = () => {} }) {
+export async function run({ profile, target, jobPostingUrl, onStage = () => {} }) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   /**
@@ -510,7 +532,7 @@ export async function run({ profile, target, onStage = () => {} }) {
 
   // 1단계
   const requiredSkills = await step(STAGE.REQUIRED_SKILLS,
-    () => searchRequiredSkills(target),
+    () => searchRequiredSkills(target, jobPostingUrl),
     '요구 역량을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   if (!requiredSkills.length) {
     emit(STAGE.REQUIRED_SKILLS, 'error', null,

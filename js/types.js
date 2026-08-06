@@ -50,6 +50,7 @@
  * @property {string}  profileId
  * @property {string}  companyOrRole     목표 기업명 또는 직군
  * @property {boolean} globalInterest    글로벌 진출 희망 여부
+ * @property {string|null} jobPostingUrl 사용자가 직접 붙여넣은 실제 채용공고 URL (선택)
  * @property {RequiredSkill[]} requiredSkills  검색으로 파악된 요구 역량
  * @property {GapSkill[]}      gapSkills       갭 분석 결과
  * @property {string}  createdAt

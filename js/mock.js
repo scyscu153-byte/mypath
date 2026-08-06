@@ -19,14 +19,18 @@ function delay(ms) {
  * @param {Object} opts
  * @param {import('./types.js').Profile} opts.profile
  * @param {string} opts.target  목표 (기업명 · 직군 · 분야)
+ * @param {string} [opts.jobPostingUrl]  실제 채용공고 URL (선택 — mock에서는 표시만 하고 검색엔 안 씀)
  * @param {(e: import('./types.js').StageEvent) => void} [opts.onStage]
  */
-export async function run({ profile, target, onStage = () => {} }) {
+export async function run({ profile, target, jobPostingUrl, onStage = () => {} }) {
   const emit = (stage, status, data, message) => onStage({ stage, status, data, message });
 
   emit(STAGE.REQUIRED_SKILLS, 'start');
   await delay(900);
-  const requiredSkills = MOCK_TARGET.requiredSkills;
+  // jobPostingUrl을 넣었으면 mock에서도 그 링크가 근거로 반영된 것처럼 보여준다 (화면 확인용).
+  const requiredSkills = jobPostingUrl
+    ? MOCK_TARGET.requiredSkills.map((s) => ({ ...s, sourceUrl: jobPostingUrl }))
+    : MOCK_TARGET.requiredSkills;
   emit(STAGE.REQUIRED_SKILLS, 'done', requiredSkills);
 
   emit(STAGE.GAP_ANALYSIS, 'start');
@@ -39,8 +43,8 @@ export async function run({ profile, target, onStage = () => {} }) {
   // pipeline.js 는 이 단계에서 data 를 함께 보낸다. 모양을 맞춘다.
   emit(STAGE.PROGRAM_SEARCH, 'done', {
     matches: MOCK_MATCHES,
-    removedSources: [],
-    droppedForSource: 0,
+    removedSources: ['https://example.mju.ac.kr/dropped'],
+    droppedForSource: 1,
     supplementedCount: 1,
     collectedAt: '2026-08-06',
   });
@@ -67,7 +71,7 @@ export async function run({ profile, target, onStage = () => {} }) {
     requiredSkills,
     gapSkills,
     matches,
-    filtered: { removedSources: [], droppedForSource: 0 },
+    filtered: { removedSources: ['https://example.mju.ac.kr/dropped'], droppedForSource: 1 },
     supplement: { count: 1, collectedAt: '2026-08-06' },
     review: { personaCount: 4, failed: [] },
   };
