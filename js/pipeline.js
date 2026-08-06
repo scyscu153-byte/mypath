@@ -466,17 +466,24 @@ ${DOMAIN_GUARD}
 
 ${NO_JUDGMENT_GUARD}
 
+★ 검색할 때 반드시 ★site:mjc.ac.kr★ 을 질의에 넣어라.
+   이것을 넣지 않으면 명지대학교(mju.ac.kr)와 외부 학원·강의 사이트가 섞여 들어온다.
+   (실측: 넣지 않으면 출처의 35%만 mjc, 넣으면 100%)
+
 찾아볼 곳 (모두 ${ALLOWED_DOMAIN} 하위 — 직접 조사해 확인한 목록이다):
 - www.mjc.ac.kr    대학 공지·학사공지. 비교과·자격증·장학 공지가 가장 많다
 - cls.mjc.ac.kr    학과 공지판. 전교 공지를 미러링해 제목이 온전히 실린다
-- mpu.mjc.ac.kr    SMART CARE 비교과 프로그램
 - sanhak.mjc.ac.kr 산학협력·현장실습(WE-GO, Co-op)·캡스톤디자인
 - rise.mjc.ac.kr   RISE사업단. 다만 상당수가 성인학습자 대상이다
 - inter.mjc.ac.kr  국제교류·글로벌 현장학습
 - mrcc.mjc.ac.kr   지역협력·리빙랩
-- edu.mjc.ac.kr    평생교육원
+
+★ 아래는 재학생 대상이 아니므로 검색에서 제외해라:
+- edu.mjc.ac.kr    평생교육본부 — 성인 대상 유료과정이다 (재학생 프로그램이 아니다)
+- ipsi.mjc.ac.kr   입시 안내
 ${JSON_ONLY}`,
-    user: `아래 역량을 기를 수 있는 명지전문대학 교내 프로그램을 찾아줘. 오늘 날짜는 ${today}이다.
+    user: `site:mjc.ac.kr 로 검색해서, 아래 역량을 기를 수 있는 명지전문대학 교내 프로그램을 찾아줘.
+오늘 날짜는 ${today}이다.
 
 [부족한 역량]
 ${gapList}
@@ -497,9 +504,12 @@ ${gapList}
    판별 기준: "신청" 또는 "모집"이라는 행위가 있는가? 없으면 빼라.
 
 ★ www.mjc.ac.kr 에만 몰리지 않게 해라.
-   특히 mpu.mjc.ac.kr(SMART CARE 비교과)와 sanhak.mjc.ac.kr(현장실습·캡스톤)을
-   반드시 각각 한 번 이상 확인하고, 거기 해당하는 것이 있으면 포함해라.
-   서로 다른 서브도메인에서 최소 2곳 이상 나오는 것이 정상이다.
+   특히 sanhak.mjc.ac.kr(현장실습·캡스톤)과 cls.mjc.ac.kr(학과 공지판)도 확인해라.
+   서로 다른 서브도메인에서 나오는 것이 정상이다.
+
+★ 외부 기관의 광고성 공지를 교내 프로그램으로 착각하지 마라.
+   mjc.ac.kr 에 올라와 있어도 "KDT", "부트캠프", "국비지원", "○○아카데미 모집" 처럼
+   외부 기관이 운영하는 것은 교내 프로그램이 아니다. 제외해라.
 
 ★ 오래된 것보다 최근 것을 우선해라. 게시일을 확인할 수 있으면 반드시 postedAt 에 적어라.
    확인할 수 없으면 지어내지 말고 null 로 둬라.
@@ -540,16 +550,40 @@ ${gapList}
 
   const droppedForSource = list.length - matches.length;
 
-  // ★ 검색이 못 메운 갭을 수집 데이터로 보충한다.
+  // ── P0-2. 모집 상태 판정 ──────────────────────
+  //   ★순서가 중요하다★ — 판정을 ★먼저★ 하고, 살아남은 것을 기준으로 보충한다.
   //
-  //   실측에서 갭 5개 중 1개(Unity)만 프로그램이 나오고
-  //   Git·UI·네트워크 갭은 빈손으로 끝났다.
+  //   전에는 보충을 먼저 했다. 그러면 어떤 갭에 대해 2024년 만료 공지 하나만
+  //   나와도 그 갭이 "이미 채워짐"으로 표시되고, 뒤에서 그게 일정 탈락으로
+  //   사라져도 수집 데이터가 그 갭을 보충하지 못했다.
+  //   실측: 모델이 6건을 냈는데 4개 갭이 전부 covered 처리 → 보충 0건 →
+  //         일정 탈락 5건 → 화면에 1건만 남았다.
+  // 위쪽 today 는 프롬프트에 넣는 문자열(todayISO)이라 이름을 달리한다
+  const now = new Date();
+  const judge = (p) => {
+    const j = judgeAvailability(p, now);
+    return {
+      ...p,
+      applicationStartAt: p.applicationStartAt ?? null,
+      applicationEndAt: p.applicationEndAt ?? null,
+      eventStartAt: p.eventStartAt ?? null,
+      eventEndAt: p.eventEndAt ?? null,
+      availability: j.availability,
+      dateConfidence: j.dateConfidence,
+      availabilityReason: j.reason,
+    };
+  };
+
+  const searchJudged = matches.map((m) => judge({ ...m, origin: 'search' }));
+  const searchAlive = searchJudged.filter((p) => canRecommend(p, now));
+
+  // ★ 검색이 못 메운 갭을 수집 데이터로 보충한다.
+  //   기준은 ★일정 판정을 통과해 살아남은 것★이다.
   //   실시간 검색은 "지금 열려 있는 것"에 강하지만 놓치는 게 많다.
   //   그래서 직접 조사해 URL까지 확인한 143건에서 마저 채운다.
-  //
   //   출처는 똑같이 표시하고, 어디서 온 항목인지(origin)도 숨기지 않는다.
-  const covered = new Set(matches.map((m) => m.gapSkill));
-  const seenTitles = new Set(matches.map((m) => m.programTitle));
+  const covered = new Set(searchAlive.map((m) => m.gapSkill));
+  const seenTitles = new Set(searchAlive.map((m) => m.programTitle));
   const supplemented = [];
 
   for (const g of gaps) {
@@ -570,33 +604,12 @@ ${gapList}
     }
   }
 
-  const all = [
-    ...matches.map((m) => ({ ...m, origin: 'search' })), // 실시간 검색에서 왔다
-    ...supplemented,
-  ];
+  const suppJudged = supplemented.map(judge);
+  const suppAlive = suppJudged.filter((p) => canRecommend(p, now));
 
-  // ── P0-2. 모집 상태 판정 ──────────────────────
-  //   검색 결과와 수집 데이터에 ★똑같이★ 적용한다.
-  //   수집 143건에는 2024년 자료가 섞여 있어, 여기서 걸러지지 않으면
-  //   "이미 끝난 프로그램"이 계속 추천된다 (사용자 실측에서 발견).
-  // 위쪽 today 는 프롬프트에 넣는 문자열(todayISO)이라 이름을 달리한다
-  const now = new Date();
-  const judged = all.map((p) => {
-    const j = judgeAvailability(p, now);
-    return {
-      ...p,
-      applicationStartAt: p.applicationStartAt ?? null,
-      applicationEndAt: p.applicationEndAt ?? null,
-      eventStartAt: p.eventStartAt ?? null,
-      eventEndAt: p.eventEndAt ?? null,
-      availability: j.availability,
-      dateConfidence: j.dateConfidence,
-      availabilityReason: j.reason,
-    };
-  });
-
-  const recommendable = judged.filter((p) => canRecommend(p, now));
-  const droppedForSchedule = judged.length - recommendable.length;
+  const recommendable = [...searchAlive, ...suppAlive];
+  const droppedForSchedule = (searchJudged.length - searchAlive.length)
+    + (suppJudged.length - suppAlive.length);
 
   // ── P0-1. 출처 URL 실검증 ─────────────────────
   //   형식만 mjc.ac.kr 인 URL 과 실제로 열리는 페이지는 다르다.
