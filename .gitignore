@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────
+#  환경변수 — API 키 유출 방지 (최우선)
+#  이 저장소는 Public 입니다. 아래 파일은 절대 커밋되면 안 됩니다.
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+secrets.json
+
+# 의존성
+node_modules/
+.pnp
+.pnp.js
+
+# 빌드 산출물
+dist/
+dist-ssr/
+build/
+*.local
+
+# 캐시
+.cache/
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# 배포
+.vercel/
+
+# 로그
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 에디터
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 개인정보가 포함된 자료 (스크린샷·기획문서 등)
+# 저장소 밖(상위 폴더)에 두는 것이 원칙이지만 실수 방지용으로 한 번 더 차단
+*.png
+*.jpg
+*.jpeg
+!public/**/*.png
+!public/**/*.jpg
+!src/assets/**/*.png
+!src/assets/**/*.svg
