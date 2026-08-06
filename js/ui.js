@@ -10,7 +10,7 @@ import { STAGE, STAGE_LABEL, PERSONAS, DISCLAIMER } from './types.js';
 // 어떤 관점을 어떤 회사의 모델이 평가했는지 카드에 적는다.
 // "AI 4개를 쓴다"는 주장은 모델 이름이 화면에 있어야 확인 가능한 주장이 된다.
 import { PERSONA_MODEL, clearCache, listStoredData, clearAllStoredData } from './gateway.js';
-import { exportProfile, exportFilename, importProfile } from './profile.js';
+import { exportProfile, exportFilename, importProfile, isSaved } from './profile.js';
 
 /** 간단한 HTML 이스케이프 — 사용자가 입력한 텍스트를 그대로 innerHTML에 꽂을 때 사용 */
 function esc(str) {
@@ -448,6 +448,9 @@ function periodText(match) {
 }
 
 function programCard(match) {
+  // 담아둔 것인지 — 다시 그릴 때도 상태가 유지돼야 한다
+  const saved = isSaved(match.programTitle);
+
   // 의견이 얼마나 갈렸는지는 항상 보여준다.
   // 0.5 이상일 때만 배지를 띄우면, 대부분의 카드에서 "왜 모델을 4개 쓰는가"에 대한
   // 화면상의 답이 사라진다. 갈린 정도를 수치로 늘 적고, 크게 갈렸을 때만 강조한다.
@@ -503,10 +506,23 @@ function programCard(match) {
 
       ${personaGrid(match.personaScores)}
 
-      <label class="complete-label mt-4 flex items-center gap-2 text-sm ${match.isCompleted ? 'text-mjcblue' : 'text-maintext'}">
-        <input type="checkbox" class="complete-checkbox rounded bg-white border-line" ${match.isCompleted ? 'checked disabled' : ''} />
-        <span class="complete-label-text">${match.isCompleted ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
-      </label>
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <label class="complete-label flex items-center gap-2 text-sm ${match.isCompleted ? 'text-mjcblue' : 'text-maintext'}">
+          <input type="checkbox" class="complete-checkbox rounded bg-white border-line" ${match.isCompleted ? 'checked disabled' : ''} />
+          <span class="complete-label-text">${match.isCompleted ? '참여 완료 · 프로필에 반영됨' : '참여했어요'}</span>
+        </label>
+
+        <!-- ★"관심 있다"와 "참여했다"는 다른 상태다.★
+             전에는 「참여했어요」 하나뿐이라, 아직 신청도 안 한 프로그램을
+             담아둘 곳이 없었다. 잊어버리거나, 참여하지도 않고 체크를 누르게 된다. -->
+        ${match.isCompleted ? '' : `
+        <button type="button"
+          class="btn-save shrink-0 rounded-full border px-3 py-1 text-xs transition-colors
+                 ${saved ? 'border-mjcblue text-mjcblue' : 'border-line text-secondary hover:border-mjcblue hover:text-mjcblue'}"
+          aria-pressed="${saved}">
+          ${saved ? '★ 담아둠' : '☆ 담아두기'}
+        </button>`}
+      </div>
     </div>
   `;
 }
@@ -518,7 +534,7 @@ function programCard(match) {
  * @param {{onComplete: (match: import('./types.js').ProgramMatch) => void, onNewTarget: () => void}} handlers
  * @param {{droppedForSource?: number, supplementedCount?: number}} [meta]  검색이 실제로 무엇을 거르고 보충했는지
  */
-export function renderReport(mount, target, matches, { onComplete, onNewTarget }, meta = {}) {
+export function renderReport(mount, target, matches, { onComplete, onNewTarget, onToggleSave }, meta = {}) {
   const byGap = new Map();
   for (const m of matches) {
     if (!byGap.has(m.gapSkill)) byGap.set(m.gapSkill, []);
@@ -608,6 +624,28 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
       label.classList.remove('text-maintext');
       label.classList.add('text-mjcblue');
       card.querySelector('.complete-label-text').textContent = '참여 완료 · 프로필에 반영됨';
+      // 참여했으면 담아둘 이유가 없다 (profile.js 가 목록에서도 뺀다)
+      card.querySelector('.btn-save')?.remove();
+    });
+  });
+
+  // ── 담아두기 ──
+  //   토글이다. 다시 누르면 뺀다. 화면 전체를 다시 그리지 않고 이 버튼만 갱신한다.
+  mount.querySelectorAll('.btn-save').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('[data-match-id]');
+      const match = matches.find((m) => m.id === card.dataset.matchId);
+      if (!match) return;
+
+      const nowSaved = btn.getAttribute('aria-pressed') !== 'true';
+      onToggleSave?.(match, nowSaved);
+
+      btn.setAttribute('aria-pressed', String(nowSaved));
+      btn.textContent = nowSaved ? '★ 담아둠' : '☆ 담아두기';
+      btn.classList.toggle('border-mjcblue', nowSaved);
+      btn.classList.toggle('text-mjcblue', nowSaved);
+      btn.classList.toggle('border-line', !nowSaved);
+      btn.classList.toggle('text-secondary', !nowSaved);
     });
   });
 
@@ -645,6 +683,8 @@ function renderProfileView(mount, profile, handlers) {
   // 다른 읽기 지점은 전부 `|| []` 로 감싸져 있는데 여기만 빠져 있었다 —
   // 없으면 마이 프로필 화면 전체가 백지가 된다.
   const done = profile.completedActivities || [];
+  // savedPrograms 는 나중에 추가된 항목이라 옛 프로필에는 없다
+  const saved = profile.savedPrograms || [];
   const skillCount = (profile.skills || []).length;
   // design.md 6절 "Growth bridge" — 현재 상태 → 역량 → 목표를 파란 노드/선으로 잇고,
   // 실제로 달성된 구간만 초록으로 강조한다. 모션 없는 정적 표시로 유지한다 (8절 "모션은 절제되게").
@@ -704,6 +744,40 @@ function renderProfileView(mount, profile, handlers) {
         }
       </div>
     </div>
+
+    <!-- ──────────────────────────────────────────────
+         담아둔 프로그램.
+         결과 화면은 목표를 바꾸면 사라진다. 담아둔 것은 여기 남아서,
+         실제로 참여한 뒤에 체크할 수 있어야 성장 루프가 이어진다.
+              찾기 → ★담기★ → 참여 → 쌓임
+         ────────────────────────────────────────────── -->
+    ${
+      saved.length
+        ? `<section class="mt-6">
+            <h3 class="text-sm font-semibold text-maintext mb-2">담아둔 프로그램 (${saved.length})</h3>
+            <p class="text-xs text-secondary mb-3">참여하셨다면 체크해주세요. 보유 기술에 반영되고 목록에서 빠집니다.</p>
+            <ul class="space-y-2">
+              ${saved.map((s) => `
+                <li data-saved-title="${esc(s.programTitle)}"
+                    class="rounded-lg border border-line bg-white p-3">
+                  <p class="text-sm font-medium text-maintext break-words">${esc(s.programTitle)}</p>
+                  ${s.summary ? `<p class="text-xs text-secondary mt-0.5 break-words">${esc(s.summary)}</p>` : ''}
+                  <p class="text-xs text-secondary mt-1">채우려던 역량: ${esc(s.gapSkill)}</p>
+                  <div class="flex items-center justify-between gap-3 mt-2">
+                    <label class="flex items-center gap-2 text-sm text-maintext">
+                      <input type="checkbox" class="saved-complete rounded bg-white border-line" />
+                      참여했어요
+                    </label>
+                    <div class="flex items-center gap-3 text-xs">
+                      ${s.sourceUrl ? `<a href="${esc(s.sourceUrl)}" target="_blank" rel="noopener" class="text-mjcblue hover:underline">공지 열기 ↗</a>` : ''}
+                      <button type="button" class="saved-remove text-secondary hover:text-red-600">빼기</button>
+                    </div>
+                  </div>
+                </li>`).join('')}
+            </ul>
+          </section>`
+        : ''
+    }
 
     ${
       onBackToReport
@@ -783,6 +857,29 @@ function renderProfileView(mount, profile, handlers) {
       전부 지우고 처음부터
     </button>
   `;
+
+  // ── 담아둔 목록 ──
+  mount.querySelectorAll('.saved-complete').forEach((cb) => {
+    cb.addEventListener('change', (e) => {
+      if (!e.target.checked) return;
+      const title = e.target.closest('[data-saved-title]').dataset.savedTitle;
+      const item = saved.find((s) => s.programTitle === title);
+      if (!item) return;
+      // 담아둘 때 저장해 둔 값으로 이행 처리한다 (결과 화면이 없어도 동작해야 한다)
+      handlers.onCompleteSaved?.({
+        programTitle: item.programTitle,
+        gapSkill: item.gapSkill,
+        sourceUrl: item.sourceUrl,
+      });
+    });
+  });
+
+  mount.querySelectorAll('.saved-remove').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const title = e.target.closest('[data-saved-title]').dataset.savedTitle;
+      handlers.onRemoveSaved?.(title);
+    });
+  });
 
   mount.querySelector('#btn-profile-new-target').addEventListener('click', onNewTarget);
   mount.querySelector('#btn-profile-edit').addEventListener('click', () => renderProfileEdit(mount, profile, handlers));

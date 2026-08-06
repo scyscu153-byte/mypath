@@ -51,6 +51,8 @@ export function emptyProfile() {
     age: null,
     certificates: [],
     skills: [],
+    // 담아둔 프로그램 — "관심 있다"와 "참여했다"는 다르다 (아래 담아두기 절 참조)
+    savedPrograms: [],
     completedActivities: [],
     traits: { activityPreference: null },
     updatedAt: new Date().toISOString(),
@@ -122,8 +124,70 @@ export function importProfile(text) {
     department: String(p.department || ''),
     certificates: asList(p.certificates),
     skills: asList(p.skills),
+    // savedPrograms 는 나중에 추가된 항목이다 — 그 전에 내보낸 파일에는 없다.
+    // asList 가 없으면 undefined 가 되어 프로필 화면이 백지가 된다.
+    savedPrograms: asList(p.savedPrograms),
     completedActivities: asList(p.completedActivities),
     traits: { ...base.traits, ...(p.traits || {}) },
+  });
+}
+
+// ─────────────────────────────────────────────
+//  담아두기 (스크랩)
+//
+//  ★"관심 있다"와 "참여했다"는 다른 상태다.★
+//
+//  전에는 「참여했어요」 하나뿐이었다. 그런데 학생이 실제로 하는 행동은
+//    "이거 괜찮네, 나중에 신청해야지"
+//  이고, 이걸 담아둘 곳이 없었다. 그래서 아직 참여하지도 않았는데
+//  체크를 눌러 역량이 먼저 쌓이거나, 그냥 잊어버리는 두 가지 중 하나가 됐다.
+//
+//  담아두기가 생기면 성장 루프가 이어진다:
+//    찾기 → ★담기★ → 참여 → 쌓임
+// ─────────────────────────────────────────────
+
+/** 담아둔 목록에 있는가 */
+export function isSaved(programTitle, profile = loadProfile()) {
+  return (profile?.savedPrograms || []).some((p) => p.programTitle === programTitle);
+}
+
+/**
+ * 프로그램을 담아둔다. 이미 담겨 있으면 아무 일도 하지 않는다.
+ * @param {import('./types.js').ProgramMatch} match
+ */
+export function saveProgram(match) {
+  const profile = loadProfile();
+  if (!profile) throw new Error('프로필이 없습니다');
+
+  const saved = profile.savedPrograms || [];
+  if (saved.some((p) => p.programTitle === match.programTitle)) return profile;
+
+  // 나중에 프로필 화면에서 그대로 보여줘야 하므로 필요한 것만 복사해 둔다.
+  // 원본 match 를 통째로 넣으면 페르소나 점수까지 localStorage 를 차지한다.
+  return saveProfile({
+    ...profile,
+    savedPrograms: [
+      ...saved,
+      {
+        programTitle: match.programTitle,
+        gapSkill: match.gapSkill,
+        summary: match.summary || '',
+        sourceUrl: match.sourceUrl,
+        sourceDomain: match.sourceDomain || '',
+        availability: match.availability || 'unknown',
+        savedAt: new Date().toISOString(),
+      },
+    ],
+  });
+}
+
+/** 담아둔 것을 뺀다 */
+export function unsaveProgram(programTitle) {
+  const profile = loadProfile();
+  if (!profile) return null;
+  return saveProfile({
+    ...profile,
+    savedPrograms: (profile.savedPrograms || []).filter((p) => p.programTitle !== programTitle),
   });
 }
 
@@ -166,7 +230,11 @@ export function markCompleted(match) {
     skills.push({ name: match.gapSkill, level: '프로그램 이수' });
   }
 
-  return saveProfile({ ...profile, completedActivities, skills });
+  // 참여했으면 담아둘 이유가 없다 — 두 곳에 같은 것이 남으면 사용자가 헷갈린다.
+  const savedPrograms = (profile.savedPrograms || [])
+    .filter((p) => p.programTitle !== match.programTitle);
+
+  return saveProfile({ ...profile, completedActivities, skills, savedPrograms });
 }
 
 /** 이행 표시를 되돌린다 */

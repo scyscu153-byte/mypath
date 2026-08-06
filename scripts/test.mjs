@@ -285,6 +285,56 @@ t('이행을 취소하면 기록이 사라진다', undone.completedActivities.le
 t('이행으로 얻었던 기술도 함께 사라진다', !undone.skills.some((s) => s.name === 'Git'));
 
 // ─────────────────────────────────────────────
+//  9. 담아두기 (스크랩)
+//
+//  "관심 있다"와 "참여했다"는 다른 상태다.
+//  찾기 → 담기 → 참여 → 쌓임 이 실제로 이어지는지 본다.
+// ─────────────────────────────────────────────
+describe('9. 담아두기');
+
+P.saveProfile({ ...P.emptyProfile(), department: '테스트과' });
+
+const M = { programTitle: '어학 아카데미', gapSkill: '영어', summary: '요약',
+            sourceUrl: 'https://cls.mjc.ac.kr/a', sourceDomain: 'cls.mjc.ac.kr', availability: 'open' };
+
+t('빈 프로필은 아무것도 담고 있지 않다', P.isSaved('어학 아카데미') === false);
+
+const s1 = P.saveProgram(M);
+t('담으면 목록에 들어간다', s1.savedPrograms.length === 1);
+t('isSaved 가 참이 된다', P.isSaved('어학 아카데미') === true);
+t('필요한 값이 함께 저장된다',
+  s1.savedPrograms[0].gapSkill === '영어' && s1.savedPrograms[0].sourceUrl === 'https://cls.mjc.ac.kr/a');
+t('담은 시각이 기록된다', typeof s1.savedPrograms[0].savedAt === 'string');
+t('페르소나 점수까지 통째로 저장하지는 않는다',
+  !('personaScores' in s1.savedPrograms[0]));
+
+t('두 번 담아도 중복되지 않는다', P.saveProgram(M).savedPrograms.length === 1);
+
+const s2 = P.unsaveProgram('어학 아카데미');
+t('빼면 목록에서 사라진다', s2.savedPrograms.length === 0);
+t('없는 것을 빼도 터지지 않는다', P.unsaveProgram('없는 프로그램').savedPrograms.length === 0);
+
+// ★ 담기 → 참여 → 목록에서 빠짐
+P.saveProgram(M);
+const afterDone = P.markCompleted({ programTitle: '어학 아카데미', gapSkill: '영어', sourceUrl: 'https://cls.mjc.ac.kr/a' });
+t('참여하면 담아둔 목록에서 빠진다', afterDone.savedPrograms.length === 0);
+t('참여 기록에는 들어간다', afterDone.completedActivities.some((a) => a.programTitle === '어학 아카데미'));
+t('보유 기술에도 쌓인다', afterDone.skills.some((s) => s.name === '영어'));
+
+// 옛 프로필(savedPrograms 없음)에서도 터지지 않아야 한다
+P.saveProfile({ ...P.emptyProfile(), department: '테스트과', savedPrograms: undefined });
+t('savedPrograms 가 없는 프로필에서도 isSaved 가 터지지 않는다', P.isSaved('무엇이든') === false);
+t('savedPrograms 가 없는 프로필에도 담을 수 있다', P.saveProgram(M).savedPrograms.length === 1);
+
+// 내보내기·불러오기 왕복
+const exSaved = P.exportProfile();
+P.saveProfile({ ...P.emptyProfile(), department: '다른과' });
+t('왕복 후 담아둔 목록이 복원된다',
+  P.importProfile(JSON.stringify(exSaved)).savedPrograms.length === 1);
+t('savedPrograms 가 없는 옛 파일을 불러와도 배열이 된다',
+  Array.isArray(P.importProfile('{"department":"사회복지과","grade":2}').savedPrograms));
+
+// ─────────────────────────────────────────────
 //  결과
 // ─────────────────────────────────────────────
 const total = pass + failures.length;

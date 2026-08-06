@@ -11,7 +11,10 @@ import { getUsage, setUserKey, getUserKey, hasUserKey } from './gateway.js';
 import { DEMO_PROFILE, DEMO_TARGETS } from './demo.js';
 // 저장값을 지우는 일은 ui.js 가 확인창과 함께 처리한다 (무엇이 지워지는지 보여준 뒤 지운다).
 // 여기서는 지운 뒤 화면 상태만 되돌린다.
-import { loadProfile, saveProfile as persistProfile, markCompleted } from './profile.js';
+import {
+  loadProfile, saveProfile as persistProfile, markCompleted,
+  saveProgram, unsaveProgram,
+} from './profile.js';
 import { renderOnboarding, renderTarget, renderProgress, renderReport, renderProfile } from './ui.js';
 
 const useMock = new URLSearchParams(location.search).has('mock');
@@ -218,6 +221,12 @@ function goReport() {
       // 체크박스 자체는 ui.js가 즉시 완료 상태로 갱신하므로 화면 전체를 다시 그리지 않아도 된다.
     },
     onNewTarget: goTarget,
+    // ★ 담아두기 — "관심 있다"와 "참여했다"를 분리한다.
+    //   결과 화면은 목표를 바꾸면 사라지므로, 담아둔 것은 프로필에 남아야
+    //   나중에 실제로 참여한 뒤 체크할 수 있다.
+    onToggleSave: (match, nowSaved) => {
+      profile = nowSaved ? saveProgram(match) : unsaveProgram(match.programTitle);
+    },
   }, currentMeta);
   showScreen('report');
 }
@@ -246,6 +255,16 @@ function goProfile() {
       profile = next;
       currentTarget = null;
       currentMatches = [];
+      goProfile();
+    },
+    // 담아둔 것을 프로필 화면에서 바로 이행 처리한다.
+    // 결과 화면이 이미 사라진 뒤에도 성장 루프가 이어져야 한다.
+    onCompleteSaved: (item) => {
+      profile = markCompleted(item);   // markCompleted 가 담아둔 목록에서도 뺀다
+      goProfile();
+    },
+    onRemoveSaved: (title) => {
+      profile = unsaveProgram(title);
       goProfile();
     },
     /**
