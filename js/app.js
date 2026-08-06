@@ -271,7 +271,10 @@ function updateCreditBadge() {
   const badge = document.getElementById('credit-badge');
   if (!badge || useMock) return;
   const u = getUsage();
-  badge.textContent = `이번 세션 ${u.spent.toFixed(1)} 크레딧 · 절감 ${u.saved.toFixed(0)}`;
+  // "이번 세션"이 아니다 — mypath.usage 는 localStorage 에 계속 누적되고
+  // 프로필을 초기화해도 지워지지 않는다. 새로 연 브라우저인데 69.5가 떠 있으면
+  // 화면이 거짓말을 하는 것이다. 실제 의미대로 적는다.
+  badge.textContent = `누적 ${u.spent.toFixed(1)} 크레딧 · 절감 ${u.saved.toFixed(0)}`;
 }
 
 function injectHeaderControls() {
