@@ -508,7 +508,7 @@ function personaGrid(personaScores) {
   `;
 }
 
-/** P0-2 모집 상태 배지 (개선사항.md 표기 그대로) */
+/** 모집 상태 배지 — 코드가 판정한 availability 를 그대로 그린다 (pipeline.js judgeAvailability) */
 const AVAILABILITY_META = {
   open:     { emoji: '🟢', label: '현재 모집 중' },
   upcoming: { emoji: '🔵', label: '모집 예정' },
@@ -911,7 +911,7 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget, 
 /**
  * 기술을 "직접 입력"과 "프로그램 이수"로 나눈다.
  * 후자는 completedActivities와 연결돼 있어 수정 화면에서 자유 편집을 막는다
- * (개선사항.md P0-3 §5 — 지우면 이행 이력과 어긋난다는 걸 알려야 함).
+ * (지우면 이행 이력과 어긋난다는 것을 사용자에게 알려야 한다).
  */
 function splitSkills(skills) {
   const list = skills || [];
