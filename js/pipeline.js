@@ -837,10 +837,19 @@ async function attachSourceStatus(list) {
     ...p, sourceStatus: null, sourceCheckedAt: null, sourceError: err,
   }));
 
+  // ★ 타임아웃을 반드시 건다.
+  //   출처 검증은 "있으면 좋은 정보"이지 추천의 전제조건이 아니다.
+  //   최악의 경우 20건 ÷ 동시 5 × 9초 = 36초가 걸리는데, 학교 서버가 느린 날엔 더 늘어난다.
+  //   그 시간이 3단계 스피너 안에서 흐르므로 화면은 멈춘 것처럼 보인다.
+  //   끝나지 않는 것보다 포기하고 배지 없이 추천을 내보내는 편이 낫다.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 40_000);
+
   try {
     const res = await fetch('/api/verify-source', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         items: list.slice(0, 20).map((p) => ({ url: p.sourceUrl, title: p.programTitle })),
       }),
@@ -876,8 +885,12 @@ async function attachSourceStatus(list) {
       };
     });
   } catch (e) {
-    console.warn('[출처 검증 건너뜀]', e?.message || e);
+    const reason = e?.name === 'AbortError' ? '검증 서버 응답 지연(40초 초과)' : (e?.message || e);
+    console.warn('[출처 검증 건너뜀]', reason);
+    // 검증에 실패해도 추천 자체는 그대로 내보낸다 — 배지만 안 붙는다.
     return withNull(null);
+  } finally {
+    clearTimeout(timer);
   }
 }
 

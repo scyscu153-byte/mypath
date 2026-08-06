@@ -290,28 +290,75 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
  * ★ 사용자 키가 있으면 게이트웨이를 직접 호출한다 — 우리 서버를 거치지 않는다.
  *   키가 없을 때만 프록시(데모 모드)로 간다.
  */
+/**
+ * ★브라우저 쪽 타임아웃.★
+ *
+ * 이게 없으면 상대가 연결을 붙잡고 안 놓을 때 fetch 가 영원히 매달린다.
+ * 서버에 UPSTREAM_TIMEOUT_MS(35초)를 걸어뒀지만 그건 ★우리 서버가 살아 있을 때★ 이야기다.
+ * 실제로 2026-08-07 시연 점검 중에 1단계 요청이 ★235초 동안 응답 없이 매달린 것★을
+ * 관측했다(같은 시각 다른 요청은 0.44초에 정상 응답). 화면은 스피너만 돌았다.
+ *
+ * 끝나지 않는 것보다 45초에 실패하고 "다시 시도하기"를 보여주는 편이 낫다.
+ */
+const CLIENT_TIMEOUT_MS = 45_000;
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 타임아웃으로 끊긴 것인가 */
+function isTimeout(err) {
+  return err?.name === 'AbortError';
+}
+
 async function send(payload) {
   const userKey = getUserKey();
   const { endpoint, ...rest } = payload;
 
   if (userKey) {
     // ── 직접 호출: 키가 브라우저 밖(우리 서버)으로 나가지 않는다 ──
-    const res = await fetch(`${DIRECT_BASE}/${endpoint}/`, {
-      method: 'POST',
-      headers: { 'x-api-key': userKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify(rest),
-    });
+    let res;
+    try {
+      res = await fetchWithTimeout(`${DIRECT_BASE}/${endpoint}/`, {
+        method: 'POST',
+        headers: { 'x-api-key': userKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(rest),
+      });
+    } catch (err) {
+      if (isTimeout(err)) {
+        return { __error: `게이트웨이가 ${CLIENT_TIMEOUT_MS / 1000}초 안에 응답하지 않았습니다`, __noRetry: true };
+      }
+      throw err;
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { __error: data?.detail?.message || data.error || `HTTP ${res.status}` };
     return data;
   }
 
   // ── 데모 모드: 서버가 자기 키로 대신 호출한다 ──
-  const res = await fetch(PROXY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  let res;
+  try {
+    res = await fetchWithTimeout(PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    if (isTimeout(err)) {
+      return {
+        __error: `응답이 ${CLIENT_TIMEOUT_MS / 1000}초 안에 오지 않았습니다`,
+        __hint: '실시간 검색이 평소보다 오래 걸리고 있습니다. 다시 시도해주세요',
+        __noRetry: true,
+      };
+    }
+    throw err;
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     return {
