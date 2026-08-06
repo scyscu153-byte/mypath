@@ -79,6 +79,16 @@ const CLOSED_KEYWORDS = [
 /** 상시 운영으로 볼 수 있는 표현 */
 const ONGOING_KEYWORDS = ['상시', '연중', '수시', '재학생 누구나', '언제든'];
 
+/**
+ * 그 날짜가 속한 학년도의 시작일(3월 1일)을 돌려준다.
+ * 1~2월은 아직 전 학년도다.
+ */
+function academicYearStart(d) {
+  const y = d.getUTCFullYear();
+  const startYear = d.getUTCMonth() >= 2 ? y : y - 1;   // 0=1월 → 2=3월
+  return new Date(Date.UTC(startYear, 2, 1));
+}
+
 function parseDate(v) {
   if (!v) return null;
   const s = String(v).trim().replace(/[./]/g, '-').slice(0, 10);
@@ -144,10 +154,21 @@ export function judgeAvailability(p, today = new Date()) {
   //   ★단, 이 분기는 applicationEndAt/eventEndAt 등 명시적 날짜가 전혀 없을 때만 탄다★
   //   (위에서 이미 걸러짐) — 지금도 열려 있는 상시 프로그램이 게시만 오래됐다는 이유로
   //   잘못 제외되는 것은 이 분기가 아니라 명시적 날짜/ONGOING_KEYWORDS 로 막는다.
+  //  ★ 기준: 120일 → ★현재 학년도★ (2026-08-06 실측 후 되돌림)
+  //
+  //    120일(4개월)로 좁혔더니 ★연중 상시 운영되는 프로그램 23건이 죽었다.★
+  //      명지튜터링 · 버디업 멘토링 · 도전! 학습톡톡 · 취업/창업동아리
+  //      AI Study+ · 1:1 진로코칭 · 전문기술인재장학금 · 디지털배지 · AID 역량 인증제
+  //      도서관 이용자 교육 · 글로벌 어학아카데미 · 기초학습능력 진단
+  //    전부 3월에 공지가 올라와 1년 내내 도는 것들이다.
+  //    수집 143건 기준 추천 가능 건수가 143 → 91건(64%)으로 줄었다.
+  //
+  //    학년도는 3월에 시작한다. ★같은 학년도의 공지는 종료로 단정하지 않는다.★
+  //    의미상으로도 맞고 심사위원에게 설명하기도 쉽다.
   if (posted) {
     const days = Math.floor((t - posted) / 86400000);
-    if (days > 120) {
-      return { availability: 'closed', dateConfidence: 'estimated', reason: `게시일이 ${days}일 전` };
+    if (posted < academicYearStart(t) && days > 120) {
+      return { availability: 'closed', dateConfidence: 'estimated', reason: `지난 학년도 게시물 (${days}일 전)` };
     }
   }
   return {
