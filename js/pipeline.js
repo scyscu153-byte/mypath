@@ -1553,28 +1553,7 @@ export async function run({
     '갭 분석 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   emit(STAGE.GAP_ANALYSIS, 'done', gapSkills);
 
-  // 3단계 · 교내 검색 + (켰다면) 교외 검색
-  //
-  //   ★나란히 돌린다.★ 둘 다 gapSkills 만 있으면 되고 서로를 기다릴 이유가 없다.
-  //   처음엔 줄을 세웠는데, 실측해 보니 교외 검색이 50초 상류 타임아웃에 걸렸다.
-  //   교외는 site: 제한이 없어 검색 범위가 훨씬 넓어서 교내보다 오래 걸린다.
-  //   순차로 두면 그 시간이 전체 소요에 그대로 얹힌다 —
-  //   ★켠 사람만 손해 보는 게 아니라 화면 앞에서 기다리는 시간이 통째로 길어진다.★
-  //
-  //   ★교외는 실패해도 전체를 멈추지 않는다.★ 이건 덤이지 본체가 아니다.
-  //   교외가 안 됐다고 교내 결과까지 못 보게 되면 더 나쁘다.
-  //   그래서 step() 을 쓰지 않고 여기서 직접 삼킨다.
-  let externalFailed = false;
-  const externalPromise = includeExternal
-    ? searchExternalActivities(gapSkills, target, interestAreas)
-        .then((r) => r.matches)
-        .catch((e) => {
-          externalFailed = true;
-          console.warn('[교외 활동 검색 실패 — 교내 결과는 그대로 보여준다]', e?.message || e);
-          return [];
-        })
-    : Promise.resolve([]);
-
+  // 3단계 · 교내 검색
   const {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
@@ -1588,8 +1567,34 @@ export async function run({
     droppedForSchedule, droppedForNotProgram, droppedForBrokenLink,
   });
 
-  // 교내 쪽이 끝난 시점에는 교외도 거의 끝나 있다 (같이 출발했으므로)
-  const externalMatches = await externalPromise;
+  // 3-B단계 · 교외 활동 (학생이 켰을 때만)
+  //
+  //   ★교내가 끝난 뒤에 돌린다. 나란히 돌리다가 되돌렸다.★
+  //
+  //   병렬로 두면 기다리는 시간이 안 늘어나서 좋아 보였고, 실제로 한 번은
+  //   38초에 끝났다. 그런데 3회 중 2회가 ★교내 검색 쪽에서★ 죽었다.
+  //   둘 다 sonar-pro 실시간 검색이라 상류 용량을 나눠 쓰게 되고,
+  //   그러면 교내 검색이 50초 상한을 넘긴다.
+  //
+  //   ★교외를 켰다는 이유로 교내 결과까지 못 보게 되는 것★ —
+  //   이게 정확히 이 기능이 하지 말아야 할 일이다.
+  //   화면에도 "그럴 땐 교내 결과만 나옵니다"라고 적어 뒀는데 그 약속이 깨졌다.
+  //
+  //   순차로 두면 교내가 먼저 안전하게 끝나고, 교외는 실패해도 혼자 죽는다.
+  //   느린 대신 약속을 지킨다. 덤 때문에 본체를 잃지 않는다.
+  //
+  //   ※ 한 번 더 「안전장치·최적화가 진짜를 죽인」 사례다. 8.5.2 참조.
+  let externalMatches = [];
+  let externalFailed = false;
+  if (includeExternal) {
+    try {
+      const ext = await searchExternalActivities(gapSkills, target, interestAreas);
+      externalMatches = ext.matches;
+    } catch (e) {
+      externalFailed = true;
+      console.warn('[교외 활동 검색 실패 — 교내 결과는 그대로 보여준다]', e?.message || e);
+    }
+  }
 
   // 4단계
   //   교외 항목도 같은 4명에게 평가받는다. 교내와 잣대가 다르면
