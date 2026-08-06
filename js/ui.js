@@ -338,6 +338,49 @@ function personaGrid(personaScores) {
   `;
 }
 
+/** P0-2 모집 상태 배지 (개선사항.md 표기 그대로) */
+const AVAILABILITY_META = {
+  open:     { emoji: '🟢', label: '현재 모집 중' },
+  upcoming: { emoji: '🔵', label: '모집 예정' },
+  ongoing:  { emoji: '⚪', label: '상시 참여 가능 여부 확인 필요' },
+  unknown:  { emoji: '🟡', label: '모집 일정 확인 필요' },
+};
+
+function availabilityBadge(match) {
+  const meta = AVAILABILITY_META[match.availability] || AVAILABILITY_META.unknown;
+  const tone = match.availability === 'open' || match.availability === 'upcoming'
+    ? 'bg-emerald-500/15 text-emerald-300'
+    : 'bg-amber-500/15 text-amber-300';
+  return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded ${tone} text-[11px] font-medium">
+    ${meta.emoji} ${esc(meta.label)}
+  </span>`;
+}
+
+/** P0-1 출처 검증 배지. null(검증 안 됨)이면 아무것도 그리지 않는다 — 검증은 있으면 좋은 정보이지 전제조건이 아니다. */
+function sourceStatusBadge(match) {
+  if (match.sourceStatus === 'verified') {
+    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">✅ 공식 원문 확인됨</span>`;
+  }
+  if (match.sourceStatus === 'unverified') {
+    return `<span class="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[11px]">⚠️ 원문 확인 필요</span>`;
+  }
+  return '';
+}
+
+/** 신청/행사 기간 문구. 날짜가 하나도 없으면 availabilityReason이나 기존 안내문으로 대체한다. */
+function periodText(match) {
+  if (match.applicationStartAt || match.applicationEndAt) {
+    return `신청 기간: ${esc(match.applicationStartAt || '?')} ~ ${esc(match.applicationEndAt || '확인 필요')}`;
+  }
+  if (match.eventStartAt || match.eventEndAt) {
+    return `행사 기간: ${esc(match.eventStartAt || '?')} ~ ${esc(match.eventEndAt || '확인 필요')}`;
+  }
+  if (match.availability === 'unknown') {
+    return '현재 모집 여부는 공식 공지에서 확인해주세요.';
+  }
+  return null;
+}
+
 function programCard(match) {
   // 의견이 얼마나 갈렸는지는 항상 보여준다.
   // 0.5 이상일 때만 배지를 띄우면, 대부분의 카드에서 "왜 모델을 4개 쓰는가"에 대한
@@ -359,9 +402,8 @@ function programCard(match) {
     ? `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[11px]">수집 데이터</span>`
     : `<span class="shrink-0 inline-block px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[11px]">실시간 검색</span>`;
 
-  const deadlineText = match.deadline
-    ? `${esc(match.deadline)} <span class="text-slate-500">(${DISCLAIMER.DEADLINE_UNCERTAIN})</span>`
-    : `<span class="text-slate-500">${DISCLAIMER.DEADLINE_UNCERTAIN}</span>`;
+  const period = periodText(match);
+  const searchQuery = encodeURIComponent(`site:mjc.ac.kr "${match.programTitle}"`);
 
   return `
     <div class="rounded-lg border border-ink-600 bg-ink-800/50 p-4" data-match-id="${esc(match.id)}">
@@ -371,16 +413,23 @@ function programCard(match) {
           <p class="text-sm text-slate-400 mt-0.5">${esc(match.summary)}</p>
         </div>
         <div class="flex flex-col items-end gap-1">
+          ${availabilityBadge(match)}
           ${originBadge}
           ${disagreementBadge}
         </div>
       </div>
 
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-slate-500">
-        <a href="${esc(match.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">원문 보기 ↗</a>
+        ${sourceStatusBadge(match)}
         <span>${esc(match.sourceDomain)}</span>
         ${match.postedAt ? `<span>게시일 ${esc(match.postedAt)}</span>` : ''}
-        <span>마감 ${deadlineText}</span>
+      </div>
+      ${period ? `<p class="text-xs text-slate-400 mt-1">${period}</p>` : ''}
+
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs">
+        <a href="${esc(match.sourceUrl)}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">공식 공지 열기 ↗</a>
+        <button type="button" class="btn-copy-link text-slate-500 hover:text-slate-300" data-url="${esc(match.sourceUrl)}">링크 복사</button>
+        <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-slate-500 hover:text-slate-300">학교 사이트에서 다시 검색 ↗</a>
       </div>
 
       ${personaGrid(match.personaScores)}
@@ -413,10 +462,14 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
   //   0건이면 "필터링 없음"이라고 정직하게 적는다.
   const dropped = meta.droppedForSource ?? 0;
   const supplemented = meta.supplementedCount ?? 0;
+  const droppedSchedule = meta.droppedForSchedule ?? 0;
+  const droppedBroken = meta.droppedForBrokenLink ?? 0;
   const sourceNote = [
-    dropped > 0 ? `이번 검색에서 출처 없는 항목 ${dropped}건을 제외했습니다` : '이번 검색은 전부 출처가 확인된 항목입니다',
-    supplemented > 0 ? `실시간 검색이 못 채운 ${supplemented}건은 직접 수집한 데이터로 보충했습니다` : '',
-  ].filter(Boolean).join(' · ');
+    dropped > 0 ? `출처 없는 항목 ${dropped}건 제외` : '',
+    droppedSchedule > 0 ? `마감·종료된 프로그램 ${droppedSchedule}건 제외` : '',
+    droppedBroken > 0 ? `접속되지 않는 링크 ${droppedBroken}건 제외` : '',
+    supplemented > 0 ? `실시간 검색이 못 채운 ${supplemented}건은 직접 수집한 데이터로 보충` : '',
+  ].filter(Boolean).join(' · ') || '이번 검색은 걸러진 항목 없이 전부 표시합니다';
 
   mount.innerHTML = `
     <div class="flex items-center justify-between mb-1">
@@ -450,6 +503,19 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget }
       새 목표로 다시 찾아보기
     </button>
   `;
+
+  mount.querySelectorAll('.btn-copy-link').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.url);
+        const original = btn.textContent;
+        btn.textContent = '복사됨';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      } catch {
+        // 클립보드 권한이 없는 환경(예: http)도 있다 — 조용히 무시, 다른 버튼은 여전히 동작한다
+      }
+    });
+  });
 
   mount.querySelectorAll('.complete-checkbox').forEach((cb) => {
     cb.addEventListener('change', (e) => {

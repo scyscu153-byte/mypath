@@ -112,6 +112,8 @@ async function runPipeline() {
     currentMatches = result.matches;
     currentMeta = {
       droppedForSource: result.filtered?.droppedForSource,
+      droppedForSchedule: result.filtered?.droppedForSchedule,
+      droppedForBrokenLink: result.filtered?.droppedForBrokenLink,
       supplementedCount: result.supplement?.count,
     };
     updateCreditBadge();
