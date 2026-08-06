@@ -331,7 +331,17 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
       if (attempt < MAX_RETRY) await sleep(800 * (attempt + 1));
     }
   }
-  throw new Error(`게이트웨이 호출 실패 (${MAX_RETRY + 1}회 시도): ${lastError?.message}`);
+  // ★영문 예외 원문을 사용자 화면에 그대로 내보내지 않는다.★
+  //   단계별 문구는 다 다듬어 놓고 이 경로만 `Failed to fetch` 가 새어 나가고 있었다.
+  //   사용자에게는 무엇을 하면 되는지를 말하고, 원인은 콘솔에 남긴다.
+  console.warn('[게이트웨이 호출 실패]', lastError);
+  const raw = String(lastError?.message || '');
+  const friendly = /Failed to fetch|NetworkError|network/i.test(raw)
+    ? '네트워크에 연결하지 못했습니다. 연결을 확인하고 다시 시도해주세요'
+    : (/^[\x00-\x7F]*$/.test(raw) && raw    // 영문뿐이면 사용자에게 보여줄 문장이 아니다
+        ? '요청을 처리하지 못했습니다. 다시 시도하면 대개 해결됩니다'
+        : raw || '요청을 처리하지 못했습니다');
+  throw new Error(friendly);
 }
 
 /**
@@ -343,11 +353,11 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
  * ★브라우저 쪽 타임아웃.★
  *
  * 이게 없으면 상대가 연결을 붙잡고 안 놓을 때 fetch 가 영원히 매달린다.
- * 서버에 UPSTREAM_TIMEOUT_MS(35초)를 걸어뒀지만 그건 ★우리 서버가 살아 있을 때★ 이야기다.
+ * 서버에 UPSTREAM_TIMEOUT_MS(50초)를 걸어뒀지만 그건 ★우리 서버가 살아 있을 때★ 이야기다.
  * 실제로 2026-08-07 시연 점검 중에 1단계 요청이 ★235초 동안 응답 없이 매달린 것★을
  * 관측했다(같은 시각 다른 요청은 0.44초에 정상 응답). 화면은 스피너만 돌았다.
  *
- * 끝나지 않는 것보다 45초에 실패하고 "다시 시도하기"를 보여주는 편이 낫다.
+ * 끝나지 않는 것보다 58초에 실패하고 "다시 시도하기"를 보여주는 편이 낫다.
  */
 // ★서버(50초)보다 길어야 한다.★ 브라우저가 먼저 포기하면
 // 서버가 보내주는 "왜 실패했는지"를 받지 못하고 정체불명의 오류만 남는다.
