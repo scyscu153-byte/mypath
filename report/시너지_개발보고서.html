@@ -1125,9 +1125,9 @@ UTF-8 파일로 저장해 <code>--data-binary @file</code>로 보내자 정상 �
 <tr><th style="width:30%">검사</th><th>내용</th></tr>
 <tr><td><code>scripts/check-syntax.mjs</code></td><td><code>js/</code>·<code>api/</code>의 모든 모듈을 실제로 <code>import</code>한다. <code>SyntaxError</code>만 실패로 처리하고, DOM이 없어 발생하는 런타임 오류는 경고로 남긴다</td></tr>
 <tr><td><code>scripts/check-models.mjs</code></td><td>클라이언트 라우팅 모델과 프록시 허용 목록을 대조한다</td></tr>
-<tr><td><code>scripts/test.mjs</code></td><td>판정 로직 단위 테스트 <b>133종</b> (8.5 참조)</td></tr>
+<tr><td><code>scripts/test.mjs</code></td><td>판정 로직 단위 테스트 <b>142종</b> (8.5 참조)</td></tr>
 </table>
-<pre>npm test          단위 테스트 133종
+<pre>npm test          단위 테스트 142종
 npm run check     문법 + 모델 목록 정합 + 단위 테스트
 npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포되지 않는다</pre>
 <p>세 검사 모두 <b>의도적으로 오류를 주입해 배포가 차단되는 것까지 확인</b>했다.</p>
@@ -1239,7 +1239,8 @@ npm run deploy    predeploy 로 check 가 먼저 실행 — 실패하면 배포�
 <tr><td>성장 루프 (<code>markCompleted</code>)</td><td class="c">5</td><td class="c">PASS</td></tr>
 <tr><td>담아두기 · 불러오기 정규화 (<code>saveProgram</code>·<code>importProfile</code>)</td><td class="c">21</td><td class="c">PASS</td></tr>
 <tr><td>교외 활동 · 매칭 변별력 (<code>findFallback</code>·<code>isAllowedSource</code>·<code>scope</code>)</td><td class="c">13</td><td class="c">PASS</td></tr>
-<tr class="hi"><td><b>합계</b></td><td class="c"><b>133</b></td><td class="c"><b>전부 통과</b></td></tr>
+<tr><td>장애학생 지원 대상 (<code>isDisabilitySupportProgram</code>·traits 병합)</td><td class="c">9</td><td class="c">PASS</td></tr>
+<tr class="hi"><td><b>합계</b></td><td class="c"><b>142</b></td><td class="c"><b>전부 통과</b></td></tr>
 </table>
 <p class="note"><b>이 표의 개수는 손으로 세지 않는다.</b> <code>scripts/test.mjs</code>가 그룹별 개수를 직접 세어
 마지막에 출력하며, 여기에는 그 출력값을 그대로 옮겼다.
@@ -1696,7 +1697,7 @@ AI를 단순 답변 도구로 사용하지 않고, 공식 정보 탐색·근거 
    npx vercel dev                 # http://localhost:3000
 
 ■ 개발용 도구
-   npm test               단위 테스트 133종
+   npm test               단위 테스트 142종
    npm run check          문법 + 모델 목록 정합 + 단위 테스트 (배포 게이트)
    dev-test.html          UI 없이 4단계 로직만 실행 (결과·비용·커버리지 확인)
    index.html?mock=1      크레딧을 쓰지 않고 화면만 확인</pre>
