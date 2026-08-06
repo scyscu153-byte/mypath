@@ -8,13 +8,29 @@
  *   3. 도메인 필터   mjc.ac.kr 이 아닌 출처는 버린다
  *   4. 크레딧 추적   얼마 썼고, 라우팅으로 얼마 아꼈는지 계산한다
  *
- * 실제 키는 서버(api/gateway.js)에만 있다. 이 파일은 키를 모른다.
- * 사용자가 자기 키를 입력한 경우에만 헤더로 전달한다.
+ * ─────────────────────────────────────────────────────────
+ *  ★ 키 처리 원칙 — 사용자의 키는 우리 서버를 지나가지 않는다
+ * ─────────────────────────────────────────────────────────
+ *
+ *   사용자가 자기 키를 입력한 경우
+ *     브라우저 ──────────────────────────────▶ 게이트웨이
+ *     (localStorage 의 키를 그대로 사용. 우리 서버를 거치지 않는다)
+ *
+ *   키 없이 데모 모드로 쓰는 경우
+ *     브라우저 ──▶ api/gateway.js ──▶ 게이트웨이
+ *                  (서버에만 있는 데모 키를 사용. 브라우저는 그 키를 볼 수 없다)
+ *
+ *   즉 어느 경로에서도 "남의 키를 볼 수 있는 위치"가 생기지 않는다.
+ *   게이트웨이가 CORS 를 허용하기 때문에 이 구조가 가능하다 (2026-08-06 확인).
  */
 
 import { ALLOWED_DOMAIN } from './types.js';
 
+/** 데모 모드 경로 — 서버의 키를 쓴다 */
 const PROXY = '/api/gateway';
+
+/** 사용자 키 모드 경로 — 브라우저에서 직접 호출한다 */
+const DIRECT_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway';
 
 // ─────────────────────────────────────────────
 //  모델 실측 데이터
@@ -209,18 +225,8 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      const userKey = getUserKey();
-      if (userKey) headers['x-user-key'] = userKey;
-
-      const res = await fetch(PROXY, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const data = await send(payload);
+      if (data.__error) throw new Error(data.__error);
 
       const msg = data.choices?.[0]?.message ?? {};
       const result = {
@@ -241,15 +247,55 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
   throw new Error(`게이트웨이 호출 실패 (${MAX_RETRY + 1}회 시도): ${lastError?.message}`);
 }
 
+/**
+ * 실제 전송.
+ * ★ 사용자 키가 있으면 게이트웨이를 직접 호출한다 — 우리 서버를 거치지 않는다.
+ *   키가 없을 때만 프록시(데모 모드)로 간다.
+ */
+async function send(payload) {
+  const userKey = getUserKey();
+  const { endpoint, ...rest } = payload;
+
+  if (userKey) {
+    // ── 직접 호출: 키가 브라우저 밖(우리 서버)으로 나가지 않는다 ──
+    const res = await fetch(`${DIRECT_BASE}/${endpoint}/`, {
+      method: 'POST',
+      headers: { 'x-api-key': userKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(rest),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { __error: data?.detail?.message || data.error || `HTTP ${res.status}` };
+    return data;
+  }
+
+  // ── 데모 모드: 서버가 자기 키로 대신 호출한다 ──
+  const res = await fetch(PROXY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { __error: data.error || `HTTP ${res.status}` };
+  return data;
+}
+
 /** 크레딧 잔량 조회 */
 export async function fetchCredits() {
-  const headers = { 'Content-Type': 'application/json' };
   const userKey = getUserKey();
-  if (userKey) headers['x-user-key'] = userKey;
+
+  if (userKey) {
+    // 직접 호출 (GET)
+    const res = await fetch(`${DIRECT_BASE}/credits/`, {
+      headers: { 'x-api-key': userKey },
+    });
+    if (!res.ok) throw new Error('크레딧 조회 실패');
+    const data = await res.json();
+    return data.total || null;
+  }
 
   const res = await fetch(PROXY, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ endpoint: 'credits' }),
   });
   if (!res.ok) throw new Error('크레딧 조회 실패');
