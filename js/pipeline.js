@@ -16,7 +16,7 @@
 
 import { callModel, TASK, PERSONA_MODEL, filterCitations, isAllowedSource } from './gateway.js';
 import { STAGE, PERSONAS, ALLOWED_DOMAIN } from './types.js';
-import { findFallback, FALLBACK_COLLECTED_AT } from './fallback.js';
+import { findFallback, FALLBACK_COLLECTED_AT, isCurriculum } from './fallback.js';
 
 // ─────────────────────────────────────────────
 //  공통 — 프롬프트에 반복되는 규칙
@@ -191,22 +191,11 @@ const AVAIL_RANK = { open: 0, upcoming: 1, ongoing: 2, unknown: 3, closed: 9 };
 const SOURCE_RANK = { verified: 0, unverified: 1, null: 1, undefined: 1, broken: 9 };
 
 /**
- * 정규 교육과정인가 — 비교과 프로그램이 아니라 ★학과 커리큘럼★이다.
- *
- * 수집 143건 중 19건(13%)이 여기 해당하고, 그중 10건이
- * 「융복합 모듈전공 트랙 「…」」 하나짜리 카탈로그다.
- * 트랙 이름만 다른 항목이 10개나 있어서, 조금만 걸려도 우르르 올라와
- * 화면의 절반을 차지한다. 실제로 "AI 엔지니어" 결과 5장 중 2장이 이것이었고,
- * 그중 하나는 「사회조사분석」이었다 — 목표와 무관하다.
- *
- * ★죽이지는 않는다.★ 마이크로디그리가 진짜 답인 목표도 있다.
- * 대신 맨 뒤로 보내고 개수를 제한한다(capCurriculum).
+ * 정규 학사과정·제도·조직 판별은 ★js/fallback.js 에 한 곳만 둔다.★
+ * 규칙을 두 파일에 각각 적으면 반드시 어긋난다 —
+ * 이 프로젝트에서 타임아웃 숫자와 테스트 개수로 이미 두 번 겪었다.
+ * 여기서는 가져다 쓰기만 한다 (import 는 파일 상단 참조).
  */
-const CURRICULUM_RE = /모듈전공|마이크로디그리|마이크로전공|통합전공|연계전공|복수전공|부전공|전공트랙|교육과정/;
-
-export function isCurriculum(p) {
-  return CURRICULUM_RE.test(String(p?.programTitle || ''));
-}
 
 /**
  * 정규 교육과정 항목을 최대 `max`개만 남긴다.

@@ -24,8 +24,10 @@ globalThis.localStorage = new Proxy({
 
 const {
   judgeAvailability, canRecommend, safeHttpUrl, linkKind, isStudentProgram, parseJson,
-  isCurriculum, capCurriculum, sortForDisplay,
+  capCurriculum, sortForDisplay,
 } = await import('../js/pipeline.js');
+// 정규 학사과정 판별은 fallback.js 한 곳에만 있다 (두 곳에 적으면 어긋난다)
+const { isCurriculum } = await import('../js/fallback.js');
 const P = await import('../js/profile.js');
 
 // ─────────────────────────────────────────────
