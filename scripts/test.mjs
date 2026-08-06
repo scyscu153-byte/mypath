@@ -195,6 +195,21 @@ t('교육과정이 없으면 그대로', capCurriculum([prg('경진대회'), prg
 const sorted = sortForDisplay([prg('융복합 모듈전공 트랙 「A」'), prg('AI 비교과 프로그램')]);
 t('정렬하면 교육과정이 뒤로 간다', isCurriculum(sorted[1]) && !isCurriculum(sorted[0]));
 
+// ★보충(findFallback) 경로에서는 교육과정을 아예 내보내지 않는다.
+//   낱말 매칭이라 "분석" 하나로 「사회조사분석」이 머신러닝 갭 2위에 올라왔었다.
+const { findFallback } = await import('../js/fallback.js');
+const fbCases = [
+  ['AI 엔지니어', ['머신러닝·딥러닝 이론 및 평가 지표에 대한 기본 이해', 'Python 기반 모델 개발']],
+  ['게임 개발자', ['Unity 엔진 활용 능력', 'C# 프로그래밍']],
+  ['사회복지사', ['사회복지 실습 경험', '상담 역량']],
+  ['어학', ['영어 회화', '토익 점수']],
+];
+for (const [name, gaps] of fbCases) {
+  const r = findFallback(gaps, 8);
+  t(`보충 결과에 교육과정이 없다 — ${name}`, r.every((p) => !isCurriculum(p)));
+  t(`보충이 진짜 프로그램을 돌려준다 — ${name}`, r.length > 0);
+}
+
 // ─────────────────────────────────────────────
 //  4. 링크 종류 판별 (linkKind)
 //

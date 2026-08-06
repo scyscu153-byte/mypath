@@ -2191,6 +2191,22 @@ const RARE_MAX = 12;
  * @param {string[]} gapNames  부족한 역량 이름들
  * @param {number}   limit
  */
+/**
+ * 정규 교육과정(모듈전공·마이크로디그리 등)인가.
+ *
+ * ★보충 경로에서는 이런 항목을 내보내지 않는다.★
+ *
+ * 이 함수는 낱말이 겹치는지로 고르는 단순 매칭이다. 그런데 수집 143건 중
+ * 19건(13%)이 교육과정이고 그중 10건이 「융복합 모듈전공 트랙 「…」」 카탈로그라,
+ * 낱말 하나만 스쳐도 상위권을 차지한다.
+ * 실측: "머신러닝·딥러닝 이론 및 평가 지표" 갭에 1위 「마이크로코딩」 마이크로전공과정,
+ * 2위 「사회조사분석」이 올라왔다. ★"분석"이라는 낱말 하나 때문이다.★
+ *
+ * 실시간 검색으로 올라오는 것은 막지 않는다 — 그건 모델이 관련성을 판단한 결과다.
+ * 여기서만 뺀다. 낱말이 겹친다는 이유로 "이 전공 트랙을 이수하세요"를 권할 수는 없다.
+ */
+const CURRICULUM_RE = /모듈전공|마이크로디그리|마이크로전공|통합전공|연계전공|복수전공|부전공|전공트랙|교육과정/;
+
 export function findFallback(gapNames = [], limit = 8) {
   const needles = [...new Set(
     gapNames
@@ -2225,6 +2241,9 @@ export function findFallback(gapNames = [], limit = 8) {
 
   return scored
     .filter((s) => s.score >= threshold)
+    // ★정규 교육과정은 여기서 빼낸다.★ 위 CURRICULUM_RE 주석 참조 —
+    //   낱말이 겹친다는 이유만으로 "이 전공 트랙을 이수하세요"를 권할 수는 없다.
+    .filter((s) => !CURRICULUM_RE.test(s.p.programTitle))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.p);
