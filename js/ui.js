@@ -462,12 +462,31 @@ function periodText(match) {
 function posterImage(match) {
   if (!match.poster) return '';
   return `
-    <div class="mt-3 overflow-hidden rounded-lg border border-line bg-slate-50">
+    <div class="poster-box mt-3 overflow-hidden rounded-lg border border-line bg-slate-50">
       <img src="${esc(match.poster)}" alt="${esc(match.programTitle)} 안내 포스터"
         loading="lazy" decoding="async"
         class="w-full max-h-72 object-contain"
-        onerror="this.closest('div').remove()" />
+        onerror="this.closest('.poster-box').remove()" />
     </div>`;
+}
+
+/**
+ * 포스터가 제 시간에 안 오면 자리를 치운다.
+ *
+ * ★`onerror` 만으로는 부족하다.★ 그건 ★실패했을 때★ 뜨는 것이지,
+ * ★끝나지 않는 요청★에는 뜨지 않는다. 학교 이미지 서버가 응답을 붙잡고 있으면
+ * 로드 중도 실패도 아닌 상태로 ★빈 회색 상자★가 화면에 남는다.
+ * 실제로 25초 넘게 그 상태인 것을 관측했다.
+ *
+ * 포스터는 있으면 좋은 것이지 없으면 안 되는 것이 아니다. 12초를 넘기면 조용히 지운다.
+ */
+function pruneStalePosters(mount, ms = 12_000) {
+  setTimeout(() => {
+    mount.querySelectorAll('.poster-box img').forEach((img) => {
+      // complete && naturalWidth>0 이면 정상 로드된 것이다. 그 외는 치운다.
+      if (!img.complete || img.naturalWidth === 0) img.closest('.poster-box')?.remove();
+    });
+  }, ms);
 }
 
 function programCard(match) {
@@ -675,6 +694,9 @@ export function renderReport(mount, target, matches, { onComplete, onNewTarget, 
   });
 
   mount.querySelector('#btn-new-target').addEventListener('click', onNewTarget);
+
+  // 응답이 오지 않는 포스터는 자리를 비운다 (빈 회색 상자가 남지 않게)
+  pruneStalePosters(mount);
 }
 
 // ═══════════════════════════════════════════════════════════
