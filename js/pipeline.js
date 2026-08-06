@@ -263,6 +263,71 @@ function extractJsonChunks(s) {
 }
 
 // ─────────────────────────────────────────────
+//  0단계 — 학과로 목표 후보를 제안한다
+//
+//  ★ 왜 필요한가
+//    목표 화면의 "빠른 선택"이 게임 직군 4개로 고정되어 있었다.
+//    우리 학과(AI게임소프트웨어) 기준으로 만든 것이라
+//    사회복지과·유아교육과 학생에게는 쓸모가 없고,
+//    첫 화면부터 "이건 게임과 전용 도구"로 읽힌다.
+//
+//    학과는 이미 프로필에서 받고 있다. 그걸로 만들면 된다.
+//    검색이 필요 없는 일이라 가장 싼 모델(1회 약 1크레딧)로 처리한다.
+// ─────────────────────────────────────────────
+
+/**
+ * @param {string} department  학과명 (예: "사회복지과")
+ * @param {Object} [opts]
+ * @param {number} [opts.grade]        학년 — 난이도 조절에 쓴다
+ * @param {string} [opts.skillsText]   보유 기술 요약
+ * @returns {Promise<Array<{label:string, value:string, hint:string, why:string}>>}
+ */
+export async function suggestTargets(department, { grade, skillsText } = {}) {
+  const dept = String(department || '').trim();
+  if (!dept) return [];
+
+  const { text } = await callModel({
+    task: TASK.SUGGEST_TARGETS,
+    system: `너는 전문대 학생의 진로를 함께 찾아주는 상담자다.
+학과명을 보고, 그 학과 졸업생이 실제로 가는 진로를 제시한다.
+
+중요한 규칙:
+- ★그 학과의 실제 진로만 말해라.★ IT·개발 직군을 억지로 끼워 넣지 마라.
+  예: 사회복지과 → 사회복지사·생활지원사, 유아교육과 → 보육교사·유치원 교사
+- 전문대 졸업 후 ★신입으로 실제 채용이 일어나는★ 직무여야 한다.
+- 대기업·유명 기업 이름을 굳이 넣지 마라. 직무 중심으로 제시해라.
+- 난이도를 섞어라: 진입이 쉬운 것 1개, 학과 대표 진로 1~2개, 조금 도전적인 것 1개.
+${JSON_ONLY}`,
+    user: `[학과] ${dept}
+${grade ? `[학년] ${grade}학년` : ''}
+${skillsText ? `[보유 기술] ${skillsText}` : ''}
+
+이 학생이 목표로 삼을 만한 진로 4개를 제안해줘.
+
+- label: 화면 버튼에 쓸 짧은 이름 (20자 이내)
+- value: 검색에 쓸 구체적인 표현 ("○○ 신입" 형태)
+- hint: 왜 이걸 추천하는지 한 줄 (25자 이내)
+
+형식:
+[{"label":"짧은 이름","value":"검색용 표현","hint":"한 줄 이유"}]`,
+    maxTokens: 900,
+  });
+
+  const raw = parseJson(text, []);
+  return (Array.isArray(raw) ? raw : [])
+    .map((t) => ({
+      label: String(t.label || '').trim(),
+      value: String(t.value || t.label || '').trim(),
+      hint: String(t.hint || '').trim(),
+      why: String(t.hint || '').trim(),
+      kind: 'role',
+      origin: 'suggested',   // 학과 기반 제안 — 하드코딩된 데모 목표와 구분
+    }))
+    .filter((t) => t.label && t.value)
+    .slice(0, 4);
+}
+
+// ─────────────────────────────────────────────
 //  1단계 — 목표가 요구하는 역량
 // ─────────────────────────────────────────────
 
@@ -288,7 +353,10 @@ export async function searchRequiredSkills(target, jobPostingUrl) {
 ${JSON_ONLY}`,
     user: `"${target}"의 신입 채용에서 공통적으로 요구하는 역량을 찾아줘.${postingHint}
 
-- 기술 스택, 도구, 경험 위주로 5~8개
+- 5~8개를 뽑되, ★그 직무에서 실제로 요구하는 형태★로 적어라.
+  개발 직군이면 기술 스택·도구, 자격이 필요한 직군이면 자격증·면허,
+  대인 서비스 직군이면 실습 경험·응대 역량처럼 직무에 맞는 것을 적어라.
+  ★IT 기술을 억지로 끼워 넣지 마라.★
 - 추상적인 것("성실함", "열정") 말고 구체적인 것으로
 - 각 항목에 왜 필요한지 한 줄 근거와, 그 근거가 된 실제 채용공고/기업 페이지 출처 URL
 

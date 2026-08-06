@@ -74,7 +74,7 @@ function goOnboarding() {
 }
 
 function goTarget() {
-  renderTarget(mountOf('target'), {
+  const handlers = {
     demoTargets: DEMO_TARGETS,
     onSubmit: (input) => {
       profile.traits = { activityPreference: input.activityPreference };
@@ -92,8 +92,46 @@ function goTarget() {
       };
       runPipeline();
     },
-  });
+  };
+
+  renderTarget(mountOf('target'), handlers);
   showScreen('target');
+
+  // ★ 빠른 선택을 학과에 맞춰 바꿔 끼운다.
+  //
+  //   DEMO_TARGETS 는 게임 직군 4개로 고정돼 있다. 우리 학과 기준으로 만든 것이라
+  //   사회복지과·유아교육과 학생에게는 쓸모가 없고, 첫 화면부터
+  //   "이건 게임과 전용 도구"로 읽힌다.
+  //
+  //   학과는 이미 프로필에 있으므로 그걸로 만든다.
+  //   먼저 기본값으로 화면을 그려두고, 제안이 오면 다시 그린다.
+  //   실패해도 기본값이 남아 있으므로 화면이 비지 않는다.
+  loadSuggestedTargets(handlers);
+}
+
+async function loadSuggestedTargets(handlers) {
+  const dept = profile?.department?.trim();
+  if (!dept || useMock) return;
+
+  try {
+    const suggested = await impl.suggestTargets(dept, {
+      grade: profile.grade,
+      skillsText: (profile.skills || [])
+        .map((s) => (typeof s === 'string' ? s : s?.name))
+        .filter(Boolean).join(', '),
+    });
+    if (!suggested?.length) return;
+
+    // 사용자가 이미 입력을 시작했으면 덮어쓰지 않는다
+    const input = mountOf('target')?.querySelector('input[name="companyOrRole"]');
+    if (input?.value.trim()) return;
+
+    renderTarget(mountOf('target'), { ...handlers, demoTargets: suggested });
+    updateCreditBadge();
+  } catch (e) {
+    // 제안은 부가 기능이다. 실패해도 기본 목표로 그대로 쓸 수 있어야 한다.
+    console.warn('[목표 제안 건너뜀]', e?.message || e);
+  }
 }
 
 async function runPipeline() {

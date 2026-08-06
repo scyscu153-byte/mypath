@@ -16,6 +16,41 @@ function delay(ms) {
 }
 
 /**
+ * pipeline.suggestTargets 의 mock.
+ * app.js 가 `impl.suggestTargets(...)` 로 부르므로 여기에도 있어야
+ * ?mock=1 에서 TypeError 가 나지 않는다.
+ *
+ * 학과에 따라 답이 달라지는 기능이라, mock 에서도 학과를 반영해
+ * "게임 직군만 나온다"는 문제가 재현되지 않게 한다.
+ */
+export async function suggestTargets(department, { grade } = {}) {
+  await delay(600);
+  const dept = String(department || '').trim();
+  const bank = {
+    사회복지: [
+      { label: '사회복지사', value: '사회복지사 신입', hint: '복지시설 채용 연계가 많음' },
+      { label: '생활지원사', value: '생활지원사 신입', hint: '상시 채용이 열려 있음' },
+      { label: '방과후돌봄교사', value: '방과후돌봄교사 신입', hint: '아동돌봄기관 채용' },
+      { label: '사회복지행정', value: '사회복지행정 신입', hint: '행정 업무 경험이 필요' },
+    ],
+    유아교육: [
+      { label: '보육교사', value: '보육교사 신입', hint: '가장 많이 채용되는 직무' },
+      { label: '유치원 교사', value: '유치원 교사 신입', hint: '학과 대표 진로' },
+      { label: '시간제 보육교사', value: '시간제 보육교사 신입', hint: '근무시간이 유연한 편' },
+      { label: '어린이집 담임', value: '어린이집 담임교사 신입', hint: '경력 없이 지원 가능' },
+    ],
+  };
+  const hit = Object.keys(bank).find((k) => dept.includes(k));
+  const list = hit ? bank[hit] : [
+    { label: 'Unity 클라이언트', value: '중소 게임사 Unity 클라이언트 개발자 신입', hint: '보유 기술과 가장 가까움' },
+    { label: '게임 QA / 테스터', value: '게임 QA 테스터 신입', hint: '진입 장벽이 가장 낮음' },
+    { label: '모바일 앱 개발자', value: '신입 모바일 앱 개발자', hint: '게임에 한정하지 않을 때' },
+    { label: '백엔드 개발자', value: '신입 백엔드 개발자', hint: '조금 도전적인 경로' },
+  ];
+  return list.map((t) => ({ ...t, why: t.hint, kind: 'role', origin: 'suggested' }));
+}
+
+/**
  * @param {Object} opts
  * @param {import('./types.js').Profile} opts.profile
  * @param {string} opts.target  목표 (기업명 · 직군 · 분야)
