@@ -57,6 +57,126 @@ function todayISO() {
 }
 
 // ─────────────────────────────────────────────
+//  P0-2. 모집 상태 판정
+//
+//  ★ 설계 원칙 1("자격을 판정하지 않는다")과 충돌하지 않는다.
+//
+//    자격 판정  = "너는 신청할 수 있다"      → 학칙을 모르므로 하지 않는다
+//    모집 판정  = "이건 이미 끝난 공고다"     → 날짜는 확인 가능하므로 한다
+//
+//    즉 "열려 있다"고 단정하지 않는다. ★끝난 것이 명백한 것만★ 뺀다.
+//    확인이 안 되면 unknown 으로 두고 "원문에서 확인하세요"로 넘긴다.
+//    끝난 공고를 보여주는 것이야말로 학생을 헛걸음시키는 일이다.
+// ─────────────────────────────────────────────
+
+/** 제목·요약에 이게 있으면 지나간 것으로 본다 */
+const CLOSED_KEYWORDS = [
+  '마감', '종료', '결과 발표', '결과발표', '수상작', '성과 공유', '성과공유',
+  '후기', '완료', '지난', '수료식', '시상식', '선정 결과', '선정결과',
+  '2024학년도', '2025학년도', '2024년', '2025년',
+];
+
+/** 상시 운영으로 볼 수 있는 표현 */
+const ONGOING_KEYWORDS = ['상시', '연중', '수시', '재학생 누구나', '언제든'];
+
+function parseDate(v) {
+  if (!v) return null;
+  const s = String(v).trim().replace(/[./]/g, '-').slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * 프로그램의 모집 상태를 판정한다.
+ *
+ * @param {any} p            프로그램 (postedAt · applicationEndAt · eventEndAt 등)
+ * @param {Date} [today]
+ * @returns {{availability:'open'|'upcoming'|'ongoing'|'unknown'|'closed',
+ *            dateConfidence:'verified'|'estimated'|'unknown', reason:string}}
+ */
+export function judgeAvailability(p, today = new Date()) {
+  const t = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const text = `${p.programTitle || ''} ${p.summary || ''}`;
+
+  const appStart = parseDate(p.applicationStartAt);
+  const appEnd = parseDate(p.applicationEndAt);
+  const evStart = parseDate(p.eventStartAt);
+  const evEnd = parseDate(p.eventEndAt);
+  const posted = parseDate(p.postedAt);
+
+  const hasDates = Boolean(appStart || appEnd || evStart || evEnd);
+
+  // ── 끝난 것이 명백한 경우만 제외한다 ──
+  if (appEnd && appEnd < t) {
+    return { availability: 'closed', dateConfidence: 'verified', reason: `신청 마감 ${p.applicationEndAt}` };
+  }
+  if (evEnd && evEnd < t) {
+    return { availability: 'closed', dateConfidence: 'verified', reason: `행사 종료 ${p.eventEndAt}` };
+  }
+  // 날짜가 없어도 제목이 결과·수상·마감을 말하면 지나간 것이다
+  const closedWord = CLOSED_KEYWORDS.find((k) => text.includes(k));
+  if (closedWord && !text.includes('2026학년도')) {
+    return { availability: 'closed', dateConfidence: 'estimated', reason: `종료 표현 "${closedWord}"` };
+  }
+
+  // ── 진행 중 · 예정 ──
+  if (appStart && appStart > t) {
+    return { availability: 'upcoming', dateConfidence: 'verified', reason: `신청 시작 ${p.applicationStartAt}` };
+  }
+  if (appStart && appEnd && appStart <= t && appEnd >= t) {
+    return { availability: 'open', dateConfidence: 'verified', reason: `신청 기간 중 (~${p.applicationEndAt})` };
+  }
+  if (appEnd && appEnd >= t) {
+    return { availability: 'open', dateConfidence: 'verified', reason: `신청 마감 ${p.applicationEndAt}` };
+  }
+  if (ONGOING_KEYWORDS.some((k) => text.includes(k))) {
+    return { availability: 'ongoing', dateConfidence: 'estimated', reason: '상시 운영으로 보이는 표현' };
+  }
+  if (evStart && evStart > t) {
+    return { availability: 'upcoming', dateConfidence: 'verified', reason: `행사 시작 ${p.eventStartAt}` };
+  }
+
+  // ── 여기까지 왔으면 확인이 안 된 것이다. 단정하지 않는다. ──
+  //   게시일이 아주 오래된 것은 낮은 확신으로 '지난 것 같다'고만 표시한다.
+  if (posted) {
+    const days = Math.floor((t - posted) / 86400000);
+    if (days > 365) {
+      return { availability: 'closed', dateConfidence: 'estimated', reason: `게시일이 ${days}일 전` };
+    }
+  }
+  return {
+    availability: 'unknown',
+    dateConfidence: hasDates ? 'estimated' : 'unknown',
+    reason: '일정을 확인하지 못했습니다',
+  };
+}
+
+/** 기본 추천 목록에 올릴 것인가 */
+export function canRecommend(p, today = new Date()) {
+  const a = p.availability || judgeAvailability(p, today).availability;
+  return a !== 'closed';
+}
+
+/** 정렬 우선순위 — 모집 중 > 예정 > 상시 > 미확인 */
+const AVAIL_RANK = { open: 0, upcoming: 1, ongoing: 2, unknown: 3, closed: 9 };
+
+/** 출처 검증 상태 우선순위 — 확인됨 > 미확인 > 깨짐 */
+const SOURCE_RANK = { verified: 0, unverified: 1, null: 1, undefined: 1, broken: 9 };
+
+export function sortForDisplay(list) {
+  return [...list].sort((a, b) => {
+    const av = (AVAIL_RANK[a.availability] ?? 3) - (AVAIL_RANK[b.availability] ?? 3);
+    if (av !== 0) return av;
+    const sv = (SOURCE_RANK[a.sourceStatus] ?? 1) - (SOURCE_RANK[b.sourceStatus] ?? 1);
+    if (sv !== 0) return sv;
+    // 같은 등급이면 최근 게시물 우선
+    return String(b.postedAt || '').localeCompare(String(a.postedAt || ''));
+  });
+}
+
+// ─────────────────────────────────────────────
 //  JSON 파싱 — LLM 출력은 깨끗하지 않다
 // ─────────────────────────────────────────────
 
@@ -304,8 +424,12 @@ ${gapList}
 ★ 오래된 것보다 최근 것을 우선해라. 게시일을 확인할 수 있으면 반드시 postedAt 에 적어라.
    확인할 수 없으면 지어내지 말고 null 로 둬라.
 
+★ 신청 기간과 행사 기간을 공지에서 확인할 수 있으면 적어라 (YYYY-MM-DD).
+   ★확인되지 않으면 반드시 null 로 둬라. 추측한 날짜를 적으면 학생이 헛걸음한다.★
+   "결과 발표", "수상작", "수료식" 같은 이미 끝난 행사 공지는 아예 제외해라.
+
 형식:
-[{"gapSkill":"어떤 역량을 메우는지","programTitle":"프로그램명","summary":"한 줄 설명","sourceUrl":"출처","postedAt":"게시일 또는 null","department":"운영 부서"}]`,
+[{"gapSkill":"어떤 역량을 메우는지","programTitle":"프로그램명","summary":"한 줄 설명","sourceUrl":"출처","postedAt":"게시일 또는 null","department":"운영 부서","applicationStartAt":null,"applicationEndAt":null,"eventStartAt":null,"eventEndAt":null}]`,
     maxTokens: 2500,
   });
 
@@ -323,6 +447,10 @@ ${gapList}
       sourceUrl: String(p.sourceUrl || '').trim(),
       postedAt: p.postedAt || null,
       department: p.department || null,
+      applicationStartAt: p.applicationStartAt || null,
+      applicationEndAt: p.applicationEndAt || null,
+      eventStartAt: p.eventStartAt || null,
+      eventEndAt: p.eventEndAt || null,
     }))
     .filter((p) => p.programTitle && isAllowedSource(p.sourceUrl))
     .map((p) => ({
@@ -362,16 +490,95 @@ ${gapList}
     }
   }
 
+  const all = [
+    ...matches.map((m) => ({ ...m, origin: 'search' })), // 실시간 검색에서 왔다
+    ...supplemented,
+  ];
+
+  // ── P0-2. 모집 상태 판정 ──────────────────────
+  //   검색 결과와 수집 데이터에 ★똑같이★ 적용한다.
+  //   수집 143건에는 2024년 자료가 섞여 있어, 여기서 걸러지지 않으면
+  //   "이미 끝난 프로그램"이 계속 추천된다 (사용자 실측에서 발견).
+  const today = new Date();
+  const judged = all.map((p) => {
+    const j = judgeAvailability(p, today);
+    return {
+      ...p,
+      applicationStartAt: p.applicationStartAt ?? null,
+      applicationEndAt: p.applicationEndAt ?? null,
+      eventStartAt: p.eventStartAt ?? null,
+      eventEndAt: p.eventEndAt ?? null,
+      availability: j.availability,
+      dateConfidence: j.dateConfidence,
+      availabilityReason: j.reason,
+    };
+  });
+
+  const recommendable = judged.filter((p) => canRecommend(p, today));
+  const droppedForSchedule = judged.length - recommendable.length;
+
+  // ── P0-1. 출처 URL 실검증 ─────────────────────
+  //   형식만 mjc.ac.kr 인 URL 과 실제로 열리는 페이지는 다르다.
+  //   브라우저는 CORS 때문에 확인할 수 없으므로 서버 함수에 맡긴다.
+  //   ★실패해도 추천을 막지 않는다★ — 검증은 부가 정보이지 전제 조건이 아니다.
+  const verified = await attachSourceStatus(recommendable);
+
+  // broken 만 제외한다. unverified 는 "확인 필요"로 남긴다.
+  const visible = verified.filter((p) => p.sourceStatus !== 'broken');
+  const droppedForBrokenLink = verified.length - visible.length;
+
   return {
-    matches: [
-      ...matches.map((m) => ({ ...m, origin: 'search' })), // 실시간 검색에서 왔다
-      ...supplemented,
-    ],
+    matches: sortForDisplay(visible),
     removedSources: removed,
     droppedForSource,
-    supplementedCount: supplemented.length,
+    droppedForSchedule,
+    droppedForBrokenLink,
+    supplementedCount: supplemented.filter(
+      (s) => visible.some((v) => v.programTitle === s.programTitle),
+    ).length,
     collectedAt: FALLBACK_COLLECTED_AT,
   };
+}
+
+/**
+ * 출처 URL 을 서버 함수로 실제로 열어 보고 상태를 붙인다.
+ *
+ * 서버가 없거나(정적 호스팅) 실패해도 화면은 그대로 동작해야 한다.
+ * 그래서 실패 시 sourceStatus 를 null 로 둔다 — UI 는 null 이면 배지를 그리지 않는다.
+ */
+async function attachSourceStatus(list) {
+  if (!list.length) return list;
+
+  const withNull = (err) => list.map((p) => ({
+    ...p, sourceStatus: null, sourceCheckedAt: null, sourceError: err,
+  }));
+
+  try {
+    const res = await fetch('/api/verify-source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: list.slice(0, 20).map((p) => ({ url: p.sourceUrl, title: p.programTitle })),
+      }),
+    });
+    if (!res.ok) return withNull(`검증 서버 응답 ${res.status}`);
+
+    const data = await res.json();
+    const byUrl = new Map((data.results || []).map((r) => [r.url, r]));
+
+    return list.map((p) => {
+      const r = byUrl.get(p.sourceUrl);
+      return {
+        ...p,
+        sourceStatus: r?.status ?? null,
+        sourceCheckedAt: r ? data.checkedAt : null,
+        sourceError: r?.error ?? null,
+      };
+    });
+  } catch (e) {
+    console.warn('[출처 검증 건너뜀]', e?.message || e);
+    return withNull(null);
+  }
 }
 
 function safeHost(url) {
@@ -469,6 +676,21 @@ ${listText}
       sourceDomain: m.sourceDomain,
       postedAt: m.postedAt,
       origin: m.origin || 'search', // 실시간 검색 / 수집 데이터 — 화면에 구분해 표시한다
+
+      // P0-1 출처 검증 결과 (null = 검증하지 못함 → UI 는 배지를 그리지 않는다)
+      sourceStatus: m.sourceStatus ?? null,
+      sourceCheckedAt: m.sourceCheckedAt ?? null,
+      sourceError: m.sourceError ?? null,
+
+      // P0-2 모집 상태
+      availability: m.availability ?? 'unknown',
+      dateConfidence: m.dateConfidence ?? 'unknown',
+      availabilityReason: m.availabilityReason ?? null,
+      applicationStartAt: m.applicationStartAt ?? null,
+      applicationEndAt: m.applicationEndAt ?? null,
+      eventStartAt: m.eventStartAt ?? null,
+      eventEndAt: m.eventEndAt ?? null,
+
       deadline: null, // 마감일은 판정하지 않는다 — 원문 확인 안내로 대체
       personaScores,
       // 몇 명이 실제로 평가했는지 숨기지 않는다.
@@ -550,11 +772,14 @@ export async function run({ profile, target, jobPostingUrl, onStage = () => {} }
   // 3단계
   const {
     matches, removedSources, droppedForSource, supplementedCount, collectedAt,
+    droppedForSchedule, droppedForBrokenLink,
   } = await step(STAGE.PROGRAM_SEARCH,
     () => searchPrograms(gapSkills),
     '교내 프로그램을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
-  emit(STAGE.PROGRAM_SEARCH, 'done',
-    { matches, removedSources, droppedForSource, supplementedCount, collectedAt });
+  emit(STAGE.PROGRAM_SEARCH, 'done', {
+    matches, removedSources, droppedForSource, supplementedCount, collectedAt,
+    droppedForSchedule, droppedForBrokenLink,
+  });
 
   // 4단계
   const reviewed = await step(STAGE.PERSONA_REVIEW,
@@ -567,8 +792,13 @@ export async function run({ profile, target, jobPostingUrl, onStage = () => {} }
     requiredSkills,
     gapSkills,
     matches: reviewed,
-    // 도메인 필터가 실제로 무엇을 걸러냈는지 — 화면에 근거로 보여줄 수 있다
-    filtered: { removedSources, droppedForSource },
+    // 무엇을 왜 걸러냈는지 — 화면에 근거로 보여줄 수 있다
+    filtered: {
+      removedSources,
+      droppedForSource,      // mjc.ac.kr 출처가 아니라서 제외
+      droppedForSchedule,    // 이미 끝난 것이 명백해서 제외 (P0-2)
+      droppedForBrokenLink,  // 원문이 실제로 열리지 않아서 제외 (P0-1)
+    },
     // 실시간 검색이 못 메운 갭을 수집 데이터로 몇 건 보충했는지
     supplement: { count: supplementedCount, collectedAt },
     // 4명 중 실제로 몇 명이 평가했는지 (실패한 모델이 있으면 여기 남는다)
