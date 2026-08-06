@@ -447,6 +447,29 @@ function periodText(match) {
   return null;
 }
 
+/**
+ * 공지 본문의 포스터.
+ *
+ * 교내 공지의 상당수는 본문이 포스터 한 장이라, 제목만으로는 무슨 프로그램인지 감이 안 온다.
+ * 서버(api/verify-source)가 출처를 확인하면서 이미 받아둔 HTML 에서 꺼내 오므로
+ * 추가 요청도 지연도 없다.
+ *
+ * ★깨진 이미지를 절대 보여주지 않는다.★
+ *   onerror 에서 요소를 통째로 지운다 — 로드에 실패하면 엑스박스가 뜨는 게 아니라
+ *   포스터가 없는 카드와 똑같아진다. 없는 편이 깨진 것보다 낫다.
+ *   포스터가 1MB 를 넘는 경우도 있어 lazy 로 미룬다.
+ */
+function posterImage(match) {
+  if (!match.poster) return '';
+  return `
+    <div class="mt-3 overflow-hidden rounded-lg border border-line bg-slate-50">
+      <img src="${esc(match.poster)}" alt="${esc(match.programTitle)} 안내 포스터"
+        loading="lazy" decoding="async"
+        class="w-full max-h-72 object-contain"
+        onerror="this.closest('div').remove()" />
+    </div>`;
+}
+
 function programCard(match) {
   // 담아둔 것인지 — 다시 그릴 때도 상태가 유지돼야 한다
   const saved = isSaved(match.programTitle);
@@ -503,6 +526,8 @@ function programCard(match) {
         <button type="button" class="btn-copy-link text-secondary hover:text-maintext" data-url="${esc(match.sourceUrl)}">링크 복사</button>
         <a href="https://www.google.com/search?q=${searchQuery}" target="_blank" rel="noopener" class="text-secondary hover:text-maintext">다른 검색으로 찾아보기 ↗</a>
       </div>
+
+      ${posterImage(match)}
 
       ${personaGrid(match.personaScores)}
 

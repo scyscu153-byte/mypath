@@ -349,7 +349,10 @@ export async function callModel({ task, model, system, user, maxTokens = 2000, n
  *
  * 끝나지 않는 것보다 45초에 실패하고 "다시 시도하기"를 보여주는 편이 낫다.
  */
-const CLIENT_TIMEOUT_MS = 45_000;
+// ★서버(50초)보다 길어야 한다.★ 브라우저가 먼저 포기하면
+// 서버가 보내주는 "왜 실패했는지"를 받지 못하고 정체불명의 오류만 남는다.
+//   상류 50초  <  여기 58초  <  Vercel maxDuration 60초
+const CLIENT_TIMEOUT_MS = 58_000;
 
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();

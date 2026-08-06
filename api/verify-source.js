@@ -121,12 +121,15 @@ async function verifyOne(url, title) {
       return out('broken', { httpStatus, finalUrl, bytesRead, error: '페이지가 자료 없음을 표시함' });
     }
 
+    // 포스터 이미지. 이미 받아둔 HTML 에서 꺼내므로 ★추가 요청도 지연도 없다.★
+    const poster = extractPoster(html, finalUrl);
+
     // 제목의 핵심어가 페이지에 있는지
     if (titleMatches(title, text, html)) {
-      return out('verified', { httpStatus, finalUrl, bytesRead });
+      return out('verified', { httpStatus, finalUrl, bytesRead, poster });
     }
     return out('unverified', {
-      httpStatus, finalUrl, bytesRead,
+      httpStatus, finalUrl, bytesRead, poster,
       error: '페이지는 열리지만 프로그램 제목을 확인하지 못했습니다',
     });
   } catch (e) {
@@ -144,6 +147,93 @@ async function verifyOne(url, title) {
 function isAllowedHost(host) {
   const h = String(host || '').toLowerCase();
   return h === ALLOWED_DOMAIN || h.endsWith(`.${ALLOWED_DOMAIN}`);
+}
+
+// ─────────────────────────────────────────────
+//  포스터 이미지 추출
+//
+//  교내 공지의 상당수는 본문이 ★포스터 이미지 한 장★이다.
+//  (수집 143건 중 14%는 본문 글자가 30자도 안 된다 — 포스터만 올린 것이다)
+//  제목만으로는 무슨 프로그램인지 감이 안 오는 경우가 많아 읽는 데 도움이 된다.
+//
+//  ★이미 받아둔 HTML 에서 꺼낸다 — 추가 요청도, 지연도 없다.★
+//
+//  주의: 학교 페이지에는 로고·아이콘·버튼·1픽셀 투명 이미지가 잔뜩 있다.
+//  그걸 포스터로 착각하면 카드마다 학교 로고가 붙는 우스운 화면이 된다.
+// ─────────────────────────────────────────────
+
+/**
+ * ★차단 목록이 아니라 허용 목록으로 간다.★
+ *
+ * 처음에는 "로고·아이콘처럼 생긴 것을 빼자"는 차단 방식으로 짰다가 실패했다.
+ * 실제 페이지 12건으로 시험하니 6건에서 포스터를 "찾았는데" 전부 같은 URL —
+ *   /ibuilder/comp/layout1/skin/thema01/bbs/images/0102.png
+ * 게시판 스킨 장식 이미지였다. 경로에 /bbs 가 들어 있어 첨부로 오인한 것이다.
+ * 그대로 내보냈으면 ★모든 카드에 똑같은 템플릿 이미지가 붙었을 것이다.★
+ *
+ * 학교 페이지를 뜯어보니 신호가 분명했다. 본문에 실제로 올린 이미지는
+ *   https://mjcms.mjc.ac.kr/crosseditor/binary/images/000261/2026...jpg
+ * 처럼 에디터 업로드 경로에 있고, 나머지는 전부 템플릿·배너·아이콘이다.
+ *
+ * 그래서 "업로드된 본문 이미지"만 받는다. 못 찾으면 안 그리면 그만이다.
+ * ★애매하면 버린다 — 엉뚱한 이미지를 붙이는 것보다 없는 편이 낫다.★
+ */
+const UPLOADED_IMAGE_PATH = [
+  '/crosseditor/binary/images/',   // 학교 CMS 에디터 (가장 확실한 신호)
+  '/userfiles/', '/userfile/',
+  '/upload/', '/uploads/', '/upfile/',
+  '/attach/', '/attachfile/',
+];
+
+/** 확실히 껍데기인 경로 — 허용 목록을 통과해도 여기 걸리면 버린다 */
+const CHROME_PATH = [
+  '/ibuilder/', '/resource/', '/skin/', '/template/', '/theme',
+  '/common/', '/layout',
+];
+
+export function extractPoster(html, baseUrl) {
+  const src = pickPosterSrc(html);
+  if (!src) return null;
+
+  // 상대 경로를 절대 주소로. 학교 도메인 밖이면 버린다.
+  let abs;
+  try {
+    abs = new URL(src, baseUrl);
+  } catch {
+    return null;
+  }
+  if (abs.protocol !== 'https:' && abs.protocol !== 'http:') return null;
+  if (!isAllowedHost(abs.hostname)) return null;
+
+  // 화면에서는 https 로만 띄운다 (배포본이 https 라 http 이미지는 어차피 차단된다)
+  abs.protocol = 'https:';
+  return abs.href;
+}
+
+function pickPosterSrc(html) {
+  const imgs = [...html.matchAll(/<img[^>]+>/gi)].map((m) => m[0]);
+
+  for (const tag of imgs) {
+    const src = tag.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+    if (!isUploadedImage(src)) continue;
+
+    // width/height 가 명시돼 있고 작으면 본문 이미지라도 아이콘이다
+    const w = Number(tag.match(/\bwidth=["']?(\d+)/i)?.[1] || 0);
+    const h = Number(tag.match(/\bheight=["']?(\d+)/i)?.[1] || 0);
+    if ((w && w < 150) || (h && h < 150)) continue;
+
+    return src;
+  }
+  return null;
+}
+
+/** 사람이 본문에 올린 이미지인가 (허용 목록) */
+function isUploadedImage(src) {
+  const s = String(src || '').toLowerCase();
+  if (!s || s.startsWith('data:')) return false;
+  if (/\.(svg|gif)(\?|$)/.test(s)) return false;                 // 대개 아이콘·애니메이션
+  if (CHROME_PATH.some((p) => s.includes(p))) return false;      // 템플릿·배너
+  return UPLOADED_IMAGE_PATH.some((p) => s.includes(p));
 }
 
 /**

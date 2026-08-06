@@ -882,6 +882,9 @@ async function attachSourceStatus(list) {
         sourceStatus: status,
         sourceCheckedAt: r ? data.checkedAt : null,
         sourceError: error,
+        // 공지 본문에 올라온 포스터. 서버가 이미 받아둔 HTML 에서 꺼내므로 추가 요청이 없다.
+        // 못 찾았으면 null 이고 화면은 아무것도 그리지 않는다.
+        poster: r?.poster ?? null,
       };
     });
   } catch (e) {
