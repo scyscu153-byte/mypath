@@ -499,9 +499,10 @@ ${gapList}
   //   검색 결과와 수집 데이터에 ★똑같이★ 적용한다.
   //   수집 143건에는 2024년 자료가 섞여 있어, 여기서 걸러지지 않으면
   //   "이미 끝난 프로그램"이 계속 추천된다 (사용자 실측에서 발견).
-  const today = new Date();
+  // 위쪽 today 는 프롬프트에 넣는 문자열(todayISO)이라 이름을 달리한다
+  const now = new Date();
   const judged = all.map((p) => {
-    const j = judgeAvailability(p, today);
+    const j = judgeAvailability(p, now);
     return {
       ...p,
       applicationStartAt: p.applicationStartAt ?? null,
@@ -514,7 +515,7 @@ ${gapList}
     };
   });
 
-  const recommendable = judged.filter((p) => canRecommend(p, today));
+  const recommendable = judged.filter((p) => canRecommend(p, now));
   const droppedForSchedule = judged.length - recommendable.length;
 
   // ── P0-1. 출처 URL 실검증 ─────────────────────
