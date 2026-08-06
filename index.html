@@ -67,18 +67,19 @@
      크레딧·API 버튼은 화면 왼쪽 아래 구석(#utility-corner)으로 옮겼다.
      ══════════════════════════════════════════════════════════ -->
 <header class="sticky top-0 z-30 border-b border-line bg-white/90 backdrop-blur shadow-sm">
-  <div class="max-w-5xl mx-auto px-5 py-3.5 flex items-center justify-between">
+  <div class="max-w-5xl mx-auto px-4 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between gap-2">
     <!-- 로고는 버튼이다 — 보통 사이트처럼 누르면 처음 화면으로 간다 -->
     <button id="nav-home" type="button" title="처음 화면으로"
-      class="flex items-center gap-2.5 rounded-lg px-1 -mx-1 py-0.5 text-left hover:bg-skysurface/60 transition-colors">
-      <span class="w-9 h-9 rounded-lg bg-gradient-to-br from-navy to-mjcblue text-white flex items-center justify-center font-bold text-base shrink-0">C</span>
-      <div>
-        <h1 class="text-base font-bold text-navy leading-tight">CareerBridge MJC</h1>
-        <p class="text-[11px] text-secondary leading-tight">명전의 기회를, 내 목표에 연결하다</p>
+      class="flex items-center gap-2 sm:gap-2.5 min-w-0 rounded-lg px-1 -mx-1 py-0.5 text-left hover:bg-skysurface/60 transition-colors">
+      <span class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gradient-to-br from-navy to-mjcblue text-white flex items-center justify-center font-bold text-sm sm:text-base shrink-0">C</span>
+      <div class="min-w-0">
+        <h1 class="text-sm sm:text-base font-bold text-navy leading-tight whitespace-nowrap">CareerBridge MJC</h1>
+        <!-- 좁은 화면에서는 태그라인을 숨긴다 — 로고+프로필 칩이 한 줄에 들어가야 안 겹친다 -->
+        <p class="hidden sm:block text-[11px] text-secondary leading-tight">명전의 기회를, 내 목표에 연결하다</p>
       </div>
     </button>
     <!-- 내 프로필 알약(학과·학년 + 사람 아이콘)이 여기 꽂힌다 -->
-    <div id="nav-right" class="flex items-center"></div>
+    <div id="nav-right" class="flex items-center shrink-0 min-w-0"></div>
   </div>
 </header>
 

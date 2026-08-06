@@ -419,7 +419,7 @@ function refreshProfileChip() {
     chip = document.createElement('button');
     chip.id = 'nav-profile-chip';
     chip.type = 'button';
-    chip.className = 'flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-skysurface hover:bg-skysurface/70 transition-colors';
+    chip.className = 'flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-skysurface hover:bg-skysurface/70 transition-colors min-w-0 max-w-[9.5rem] sm:max-w-none';
     chip.addEventListener('click', () => {
       // 분석 중에는 막는다 — 나갔다가 결과가 도착하면 화면이 갑자기 튄다.
       if (isRunning()) return;
@@ -437,7 +437,7 @@ function refreshProfileChip() {
   }
   chip.innerHTML = `
     <span class="w-6 h-6 rounded-full bg-mjcblue text-white flex items-center justify-center shrink-0">${icon('user', 'w-3.5 h-3.5')}</span>
-    <span class="text-xs font-medium text-mjcblue">${esc(profile.department)} · ${profile.grade}학년</span>
+    <span class="text-xs font-medium text-mjcblue truncate">${esc(profile.department)} · ${profile.grade}학년</span>
   `;
   markActiveNav();
 }
