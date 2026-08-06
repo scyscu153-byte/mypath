@@ -128,7 +128,10 @@
      푸터 — 신뢰성 고지 (설계 원칙 1)
      ══════════════════════════════════════════════════════════ -->
 <footer class="border-t border-line mt-16">
-  <div class="max-w-5xl mx-auto px-5 py-6 text-xs text-secondary leading-relaxed">
+  <!-- pb-24: 왼쪽 아래 구석에 고정된 #utility-corner(API 키 버튼·크레딧)가
+       모바일에서 이 문단 위에 그대로 겹쳐 읽히던 문제 — 그 위젯 높이만큼
+       아래 여백을 넉넉히 둬서, 끝까지 스크롤해도 겹치지 않고 빈 공간과 만나게 한다. -->
+  <div class="max-w-5xl mx-auto px-5 py-6 pb-24 sm:pb-6 text-xs text-secondary leading-relaxed">
     <p>
       이 도구는 <strong class="text-maintext">프로그램의 참여 자격을 판정하지 않습니다.</strong>
       신청 자격·학년 제한·중복 참여 제한·마감일은 반드시 원문에서 확인하세요.
