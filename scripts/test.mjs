@@ -112,6 +112,17 @@ t('file: 는 차단', safeHttpUrl('file:///etc/passwd') === '');
 t('URL 이 아니면 빈 문자열', safeHttpUrl('그냥 글자') === '');
 t('null/undefined 에 터지지 않는다', safeHttpUrl(null) === '' && safeHttpUrl(undefined) === '');
 
+// ★ 스킴 없는 주소는 살려야 한다.
+//   모델이 www.jobkorea.co.kr/... 처럼 적는 일이 잦은데, 이걸 버리면
+//   요구 역량이 0건이 되어 파이프라인이 그 자리에서 멈춘다.
+t('스킴 없는 도메인은 https 를 붙여 살린다',
+  safeHttpUrl('www.jobkorea.co.kr/Recruit/123') === 'https://www.jobkorea.co.kr/Recruit/123');
+t('스킴 없는 mjc 주소도 살린다',
+  safeHttpUrl('cls.mjc.ac.kr/bbs/data/view.do?data_idx=BD1').startsWith('https://cls.mjc.ac.kr/'));
+t('스킴을 붙였다고 javascript: 가 되살아나지 않는다', safeHttpUrl('javascript:alert(1)') === '');
+t('점이 없는 낱말은 도메인으로 보지 않는다', safeHttpUrl('포트폴리오') === '');
+t('앞뒤 공백은 정리한다', safeHttpUrl('  https://www.mjc.ac.kr/  ') === 'https://www.mjc.ac.kr/');
+
 // ─────────────────────────────────────────────
 //  4. 링크 종류 판별 (linkKind)
 //

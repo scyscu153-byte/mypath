@@ -420,14 +420,36 @@ ${JSON_ONLY}`,
     .filter((s) => s.name && s.sourceUrl);   // 빈 문자열이 된 항목은 여기서 걸러진다
 }
 
-/** http/https 만 통과시킨다. 그 외(javascript:, data:, file: …)는 빈 문자열. */
+/**
+ * http/https 만 통과시킨다. 그 외(javascript:, data:, file: …)는 빈 문자열.
+ *
+ * ★스킴이 없는 주소를 버리면 안 된다.★
+ *   모델은 `www.jobkorea.co.kr/Recruit/123` 처럼 스킴 없이 적는 일이 잦다.
+ *   이걸 new URL() 에 그대로 넣으면 예외가 나고, 호출부의 filter 가
+ *   그 항목을 통째로 지운다 — 요구 역량이 0건이 되어 파이프라인이 멈춘다.
+ *   (안전장치를 넣다가 멀쩡한 결과를 죽이는, 이 프로젝트에서 반복해서 만난 실수다.)
+ *   도메인처럼 생겼으면 https 를 붙여서 살린다.
+ */
 export function safeHttpUrl(u) {
-  try {
-    const x = new URL(String(u));
-    return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : '';
-  } catch {
-    return '';
-  }
+  const s = String(u ?? '').trim();
+  if (!s) return '';
+
+  const parse = (candidate) => {
+    try {
+      const x = new URL(candidate);
+      return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : '';
+    } catch {
+      return '';
+    }
+  };
+
+  const direct = parse(s);
+  if (direct) return direct;
+
+  // 스킴이 아예 없을 때만 https 를 붙여본다.
+  // 이미 `javascript:` 같은 스킴이 있으면 여기 오지 않는다 (아래 정규식이 막는다).
+  if (/^[^\s:]+\.[a-z]{2,}(?:[:/?#]|$)/i.test(s)) return parse(`https://${s}`);
+  return '';
 }
 
 // ─────────────────────────────────────────────
