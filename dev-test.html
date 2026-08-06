@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개발용 — 파이프라인 검증</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { word-break: keep-all; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-4xl mx-auto px-5 py-8">
+
+  <div class="mb-6">
+    <h1 class="text-lg font-bold">파이프라인 검증 (개발용)</h1>
+    <p class="text-xs text-slate-400 mt-1">
+      UI 없이 4단계 로직만 실행해 결과와 비용을 확인한다.
+      이 페이지는 개발 도구이며 최종 산출물이 아니다.
+    </p>
+  </div>
+
+  <!-- 키 입력 -->
+  <div class="border border-slate-700 rounded-lg p-4 mb-4">
+    <label class="block text-sm font-semibold mb-2">팩트챗 API 키</label>
+    <div class="flex gap-2">
+      <input id="key" type="password" placeholder="키를 입력하면 브라우저에만 저장됩니다"
+             class="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm">
+      <button id="save-key" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm font-semibold">저장</button>
+    </div>
+    <p class="text-xs text-slate-500 mt-2">
+      이 키는 브라우저에서 게이트웨이로 직접 전송됩니다. 서버를 거치지 않습니다.
+    </p>
+  </div>
+
+  <!-- 실행 -->
+  <div class="border border-slate-700 rounded-lg p-4 mb-4">
+    <label class="block text-sm font-semibold mb-2">목표</label>
+    <select id="target" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm mb-3"></select>
+
+    <div class="flex flex-wrap gap-2">
+      <button id="run"      class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-semibold">전체 실행</button>
+      <button id="run-s1"   class="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs">1단계만</button>
+      <button id="run-s12"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs">1~2단계</button>
+      <button id="clear"    class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs">캐시 비우기</button>
+      <button id="credits"  class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-xs">크레딧 조회</button>
+    </div>
+  </div>
+
+  <!-- 사용량 -->
+  <div id="usage" class="border border-slate-700 rounded-lg p-4 mb-4 text-sm tabular-nums"></div>
+
+  <!-- 로그 -->
+  <div id="log" class="space-y-3"></div>
+
+</div>
+
+<script type="module">
+import { DEMO_PROFILE, DEMO_TARGETS } from './js/demo.js';
+import { run, searchRequiredSkills, analyzeGap } from './js/pipeline.js';
+import {
+  setUserKey, getUserKey, getUsage, clearCache, fetchCredits, MODEL_PROFILE,
+} from './js/gateway.js';
+import { STAGE_LABEL } from './js/types.js';
+
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+
+// ── 키 ──────────────────────────────────────
+$('key').value = getUserKey();
+$('save-key').onclick = () => {
+  setUserKey($('key').value);
+  card('키 저장됨', '브라우저 localStorage 에만 저장되었습니다.', 'emerald');
+};
+
+// ── 목표 선택지 ─────────────────────────────
+DEMO_TARGETS.forEach((t, i) => {
+  const o = document.createElement('option');
+  o.value = t.value;
+  o.textContent = `${t.label} — ${t.hint}`;
+  if (i === 0) o.selected = true;
+  $('target').appendChild(o);
+});
+
+// ── 사용량 표시 ─────────────────────────────
+function renderUsage() {
+  const u = getUsage();
+  $('usage').innerHTML = `
+    <div class="grid grid-cols-4 gap-3 text-center">
+      <div><div class="text-xs text-slate-400">호출</div><div class="text-lg font-bold">${u.calls}</div></div>
+      <div><div class="text-xs text-slate-400">사용 크레딧</div><div class="text-lg font-bold">${u.spent.toFixed(1)}</div></div>
+      <div><div class="text-xs text-slate-400">전부 Opus였다면</div><div class="text-lg font-bold text-slate-400">${u.baseline.toFixed(1)}</div></div>
+      <div><div class="text-xs text-slate-400">절감</div><div class="text-lg font-bold text-emerald-400">${u.saved.toFixed(1)}</div></div>
+    </div>`;
+}
+renderUsage();
+
+// ── 로그 카드 ───────────────────────────────
+function card(title, body, color = 'slate', meta = '') {
+  const el = document.createElement('div');
+  el.className = `border border-${color}-700 rounded-lg p-4`;
+  el.innerHTML = `
+    <div class="flex items-baseline justify-between mb-2">
+      <div class="font-semibold text-${color}-300">${title}</div>
+      <div class="text-xs text-slate-500 tabular-nums">${meta}</div>
+    </div>
+    <pre class="text-xs text-slate-300 leading-relaxed">${escapeHtml(body)}</pre>`;
+  logEl.prepend(el);
+  return el;
+}
+const escapeHtml = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+// ── 실행 ────────────────────────────────────
+async function guard(fn) {
+  if (!getUserKey()) return card('키가 없습니다', '먼저 API 키를 저장하세요.', 'red');
+  try {
+    await fn();
+  } catch (e) {
+    card('실패', String(e.message || e), 'red');
+  } finally {
+    renderUsage();
+  }
+}
+
+$('run').onclick = () => guard(async () => {
+  const target = $('target').value;
+  const t0 = performance.now();
+  card('실행 시작', `목표: ${target}`, 'blue');
+
+  const result = await run({
+    profile: DEMO_PROFILE,
+    target,
+    onStage: ({ stage, status, data }) => {
+      if (status === 'start') {
+        card(`▶ ${STAGE_LABEL[stage]}`, '진행 중…', 'slate');
+      } else if (status === 'done') {
+        card(`✅ ${STAGE_LABEL[stage]}`, JSON.stringify(data, null, 2), 'emerald',
+             `${((performance.now() - t0) / 1000).toFixed(1)}초 경과`);
+      }
+    },
+  });
+
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  const f = result.filtered;
+  const gapNames = result.gapSkills.map((g) => g.name);
+  const coveredGaps = new Set(result.matches.map((m) => m.gapSkill));
+  const uncovered = gapNames.filter((n) => !coveredGaps.has(n));
+  const bySearch = result.matches.filter((m) => m.origin === 'search').length;
+
+  card('전체 완료', [
+    `소요 ${elapsed}초`,
+    `요구 역량 ${result.requiredSkills.length}개`,
+    `갭 ${result.gapSkills.length}개`,
+    `추천 프로그램 ${result.matches.length}개 (실시간 검색 ${bySearch} + 수집데이터 ${result.supplement.count})`,
+    ``,
+    `[갭 커버리지]  ${coveredGaps.size}/${gapNames.length}`,
+    ...(uncovered.length ? uncovered.map((n) => `  ✗ 못 메운 갭: ${n}`) : ['  전부 커버됨']),
+    ``,
+    `[4인 평가]  ${result.review.personaCount}명 중 실패 ${result.review.failed.length}명`
+      + (result.review.failed.length ? ` → ${result.review.failed.join(', ')}` : ' ✓'),
+    ``,
+    `[도메인 필터 결과]`,
+    `mjc 아닌 출처로 버린 항목: ${f.droppedForSource}개`,
+    `걸러낸 출처: ${f.removedSources.length}개`,
+    ...f.removedSources.slice(0, 8).map((u) => `  - ${u}`),
+  ].join('\n'), 'blue', `${elapsed}초`);
+});
+
+$('run-s1').onclick = () => guard(async () => {
+  const t0 = performance.now();
+  const r = await searchRequiredSkills($('target').value);
+  card('1단계 · 요구 역량', JSON.stringify(r, null, 2), 'emerald',
+       `${((performance.now() - t0) / 1000).toFixed(1)}초`);
+});
+
+$('run-s12').onclick = () => guard(async () => {
+  const t0 = performance.now();
+  const req = await searchRequiredSkills($('target').value);
+  card('1단계 · 요구 역량', JSON.stringify(req, null, 2), 'emerald');
+  const gap = await analyzeGap(req, DEMO_PROFILE);
+  card('2단계 · 갭 분석', JSON.stringify(gap, null, 2), 'emerald',
+       `${((performance.now() - t0) / 1000).toFixed(1)}초`);
+});
+
+$('clear').onclick = () => { clearCache(); card('캐시 비움', '다음 호출은 실제로 게이트웨이를 부릅니다.', 'slate'); };
+
+$('credits').onclick = () => guard(async () => {
+  const c = await fetchCredits();
+  card('크레딧 잔량', JSON.stringify(c, null, 2), 'blue');
+});
+
+// 모델 정보 표시
+card('모델 라우팅 정책', Object.entries(MODEL_PROFILE)
+  .map(([m, p]) => `${m.padEnd(20)} ${String(p.credits).padStart(6)} 크레딧  ${String(p.seconds).padStart(5)}초   ${p.note}`)
+  .join('\n'), 'slate');
+</script>
+</body>
+</html>

@@ -39,14 +39,20 @@ const DIRECT_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway';
 // ─────────────────────────────────────────────
 
 export const MODEL_PROFILE = Object.freeze({
-  'gpt-5.4-nano':     { credits: 1.0,   seconds: 2.0,  note: '분류·판별 등 초경량 작업' },
-  'gpt-5.4-mini':     { credits: 1.99,  seconds: 2.8,  note: '주력 — 추론·요약·평가' },
-  'gemini-3.5-flash': { credits: 7.90,  seconds: 8.0,  note: '다른 관점의 평가' },
-  'claude-sonnet-5':  { credits: 8.0,   seconds: 6.0,  note: '다른 관점의 평가' },
-  'sonar-pro':        { credits: 28.0,  seconds: 20.0, note: '실시간 웹 검색 (호출 최소화)' },
+  'solar-pro3':            { credits: 0.07,  seconds: 1.6,  note: '평가 — 국내 모델(Upstage)' },
+  'gemini-3.5-flash-lite': { credits: 0.33,  seconds: 1.8,  note: '평가 — Google' },
+  'gpt-5.4-nano':          { credits: 1.0,   seconds: 2.0,  note: '분류·판별 등 초경량 작업' },
+  'gpt-5.4-mini':          { credits: 1.99,  seconds: 2.8,  note: '주력 — 추론·요약·평가' },
+  'claude-sonnet-5':       { credits: 8.0,   seconds: 6.0,  note: '평가 — Anthropic' },
+  'sonar-pro':             { credits: 28.0,  seconds: 20.0, note: '실시간 웹 검색 (호출 최소화)' },
+
+  // ── 측정은 했으나 쓰지 않는 모델 ──────────────
+  // gemini-3.5-flash 는 답을 쓰기 전에 속으로 1,187토큰을 생각한다.
+  // 그 토큰도 과금되는데 결과물은 flash-lite 와 다르지 않았다. (2026-08-06 실측)
+  'gemini-3.5-flash':      { credits: 7.90,  seconds: 7.4,  note: '미사용 — 숨은 추론 1,187토큰' },
   // 비교 기준 — 실제로 호출하지 않는다.
   // "가장 좋은 모델만 쓰면 얼마나 드는가"를 계산하기 위한 값.
-  'claude-opus-5':    { credits: 52.94, seconds: 25.9, note: '미사용 — 26배 비싸고 9배 느림' },
+  'claude-opus-5':         { credits: 52.94, seconds: 25.9, note: '미사용 — 26배 비싸고 9배 느림' },
 });
 
 /** 라우팅을 하지 않았을 때의 기준 모델 (절감량 계산용) */
@@ -75,12 +81,22 @@ const ROUTE = Object.freeze({
   [TASK.CLASSIFY]: 'gpt-5.4-nano',
 });
 
-/** 4개 페르소나에 서로 다른 벤더의 모델을 배정한다 (관점 다양성 확보) */
+/**
+ * 4개 페르소나에 ★서로 다른 회사의 모델★을 배정한다.
+ *
+ * 같은 모델 두 개에게 다른 역할만 시키면 관점이 갈리지 않는다.
+ * 그래서 벤더를 네 곳으로 나눴다 — OpenAI / Anthropic / Google / Upstage(한국).
+ *
+ * 모델 선택 근거 (2026-08-06 실측):
+ *   senior 는 원래 gemini-3.5-flash 였다. 그런데 이 모델은 답을 쓰기 전에
+ *   속으로 1,187토큰을 생각하느라 출력이 잘려 ★평가가 통째로 실패★하고 있었다.
+ *   숨은 추론이 없는 flash-lite 로 바꾸니 4배 빨라지고 24배 싸졌다.
+ */
 export const PERSONA_MODEL = Object.freeze({
-  practitioner: 'gpt-5.4-mini',
-  professor: 'claude-sonnet-5',
-  senior: 'gemini-3.5-flash',
-  market: 'gpt-5.4-mini',
+  practitioner: 'gpt-5.4-mini',            // OpenAI
+  professor: 'claude-sonnet-5',            // Anthropic
+  senior: 'gemini-3.5-flash-lite',         // Google
+  market: 'solar-pro3',                    // Upstage — 국내 채용 시장 감각
 });
 
 export function routeModel(task) {

@@ -16,6 +16,7 @@
 
 import { callModel, TASK, PERSONA_MODEL, filterCitations, isAllowedSource } from './gateway.js';
 import { STAGE, PERSONAS, ALLOWED_DOMAIN } from './types.js';
+import { findFallback, FALLBACK_COLLECTED_AT } from './fallback.js';
 
 // ─────────────────────────────────────────────
 //  공통 — 프롬프트에 반복되는 규칙
@@ -238,7 +239,47 @@ ${gapList}
     }));
 
   const droppedForSource = list.length - matches.length;
-  return { matches, removedSources: removed, droppedForSource };
+
+  // ★ 검색이 못 메운 갭을 수집 데이터로 보충한다.
+  //
+  //   실측에서 갭 5개 중 1개(Unity)만 프로그램이 나오고
+  //   Git·UI·네트워크 갭은 빈손으로 끝났다.
+  //   실시간 검색은 "지금 열려 있는 것"에 강하지만 놓치는 게 많다.
+  //   그래서 직접 조사해 URL까지 확인한 143건에서 마저 채운다.
+  //
+  //   출처는 똑같이 표시하고, 어디서 온 항목인지(origin)도 숨기지 않는다.
+  const covered = new Set(matches.map((m) => m.gapSkill));
+  const seenTitles = new Set(matches.map((m) => m.programTitle));
+  const supplemented = [];
+
+  for (const g of gaps) {
+    if (covered.has(g.name)) continue;
+    for (const p of findFallback([g.name], 2)) {
+      if (seenTitles.has(p.programTitle)) continue;
+      seenTitles.add(p.programTitle);
+      supplemented.push({
+        gapSkill: g.name,
+        programTitle: p.programTitle,
+        summary: p.summary,
+        sourceUrl: p.sourceUrl,
+        sourceDomain: p.sourceDomain,
+        postedAt: p.postedAt,
+        department: p.department,
+        origin: 'collected', // 수집 데이터에서 왔다
+      });
+    }
+  }
+
+  return {
+    matches: [
+      ...matches.map((m) => ({ ...m, origin: 'search' })), // 실시간 검색에서 왔다
+      ...supplemented,
+    ],
+    removedSources: removed,
+    droppedForSource,
+    supplementedCount: supplemented.length,
+    collectedAt: FALLBACK_COLLECTED_AT,
+  };
 }
 
 function safeHost(url) {
@@ -292,15 +333,22 @@ ${listText}
 
 형식:
 [{"index":1,"score":8,"comment":"한 줄 평가"}]`,
-          maxTokens: 900,
+          // ★ 900 이었을 때 한 모델의 출력이 문장 중간에 잘려 평가가 통째로 날아갔다.
+          //   모델에 따라 답을 쓰기 전에 속으로 생각하는 토큰이 있고, 그것도 이 한도에 포함된다.
+          maxTokens: 1500,
         });
         return { key: p.key, verdicts: parseJson(text, []) };
-      } catch {
-        // 한 모델이 실패해도 나머지 관점은 살린다
-        return { key: p.key, verdicts: [] };
+      } catch (e) {
+        // 한 모델이 실패해도 나머지 관점은 살린다.
+        // 다만 ★조용히 넘어가지는 않는다★ — 실패를 삼키면 "4개가 평가했다"고
+        // 표시해놓고 실제로는 3개만 평가한 상태가 된다.
+        console.warn(`[페르소나 실패] ${p.key} (${PERSONA_MODEL[p.key]}):`, e?.message || e);
+        return { key: p.key, verdicts: [], error: String(e?.message || e) };
       }
     }),
   );
+
+  const failedPersonas = results.filter((r) => r.error).map((r) => r.key);
 
   // 페르소나별 결과를 프로그램별로 합친다
   return matches.map((m, i) => {
@@ -327,8 +375,13 @@ ${listText}
       sourceUrl: m.sourceUrl,
       sourceDomain: m.sourceDomain,
       postedAt: m.postedAt,
+      origin: m.origin || 'search', // 실시간 검색 / 수집 데이터 — 화면에 구분해 표시한다
       deadline: null, // 마감일은 판정하지 않는다 — 원문 확인 안내로 대체
       personaScores,
+      // 몇 명이 실제로 평가했는지 숨기지 않는다.
+      // 화면에 "4개 AI가 평가했습니다"라고 쓰려면 이 값이 4여야 한다.
+      reviewedBy: scores.length,
+      failedPersonas,
       disagreement: disagreementOf(scores),
       isCompleted: false,
     };
@@ -383,8 +436,11 @@ export async function run({ profile, target, onStage = () => {} }) {
 
   // 3단계
   emit(STAGE.PROGRAM_SEARCH, 'start');
-  const { matches, removedSources, droppedForSource } = await searchPrograms(gapSkills);
-  emit(STAGE.PROGRAM_SEARCH, 'done', { matches, removedSources, droppedForSource });
+  const {
+    matches, removedSources, droppedForSource, supplementedCount, collectedAt,
+  } = await searchPrograms(gapSkills);
+  emit(STAGE.PROGRAM_SEARCH, 'done',
+    { matches, removedSources, droppedForSource, supplementedCount, collectedAt });
 
   // 4단계
   emit(STAGE.PERSONA_REVIEW, 'start');
@@ -398,5 +454,12 @@ export async function run({ profile, target, onStage = () => {} }) {
     matches: reviewed,
     // 도메인 필터가 실제로 무엇을 걸러냈는지 — 화면에 근거로 보여줄 수 있다
     filtered: { removedSources, droppedForSource },
+    // 실시간 검색이 못 메운 갭을 수집 데이터로 몇 건 보충했는지
+    supplement: { count: supplementedCount, collectedAt },
+    // 4명 중 실제로 몇 명이 평가했는지 (실패한 모델이 있으면 여기 남는다)
+    review: {
+      personaCount: PERSONAS.length,
+      failed: reviewed[0]?.failedPersonas || [],
+    },
   };
 }
