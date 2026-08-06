@@ -155,7 +155,11 @@ async function runPipeline() {
   const my = ++runToken;          // 이 실행의 번호
   const mine = currentTarget;     // 이 실행이 분석 중인 목표 (도중에 바뀔 수 있다)
   running = true;
-  const onStage = renderProgress(mountOf('progress'));
+  // 실패했을 때 나갈 길을 함께 넘긴다 — 없으면 새로고침 말고 방법이 없다.
+  const onStage = renderProgress(mountOf('progress'), {
+    onRetry: () => { running = false; runPipeline(); },
+    onNewTarget: () => { running = false; goTarget(); },
+  });
   showScreen('progress');
 
   try {

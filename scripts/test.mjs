@@ -22,7 +22,7 @@ globalThis.localStorage = new Proxy({
   getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
 });
 
-const { judgeAvailability, canRecommend, safeHttpUrl, linkKind, isStudentProgram } =
+const { judgeAvailability, canRecommend, safeHttpUrl, linkKind, isStudentProgram, parseJson } =
   await import('../js/pipeline.js');
 const P = await import('../js/profile.js');
 
@@ -32,9 +32,13 @@ const P = await import('../js/profile.js');
 let pass = 0;
 const failures = [];
 let group = '';
+// 그룹별 개수를 코드가 직접 센다.
+// 보고서 표를 손으로 세다가 틀린 적이 있다 — 세는 일은 사람이 하면 안 된다.
+const counts = new Map();
 
-const describe = (name) => { group = name; console.log(`\n${name}`); };
+const describe = (name) => { group = name; counts.set(name, 0); console.log(`\n${name}`); };
 const t = (name, cond) => {
+  counts.set(group, (counts.get(group) || 0) + 1);
   if (cond) { pass++; console.log(`  ✓ ${name}`); }
   else { failures.push(`${group} › ${name}`); console.log(`  ✗ ${name}`); }
 };
@@ -122,6 +126,39 @@ t('스킴 없는 mjc 주소도 살린다',
 t('스킴을 붙였다고 javascript: 가 되살아나지 않는다', safeHttpUrl('javascript:alert(1)') === '');
 t('점이 없는 낱말은 도메인으로 보지 않는다', safeHttpUrl('포트폴리오') === '');
 t('앞뒤 공백은 정리한다', safeHttpUrl('  https://www.mjc.ac.kr/  ') === 'https://www.mjc.ac.kr/');
+
+// ─────────────────────────────────────────────
+//  3-B. JSON 파싱 — 모델은 형식을 자주 어긴다
+//
+//  여기가 뚫리면 그 단계가 0건이 되고 파이프라인이 멈춘다.
+//  실제로 두 번 그렇게 멈췄다.
+// ─────────────────────────────────────────────
+describe('3-B. JSON 파싱');
+
+t('평범한 배열', parseJson('[{"name":"A"}]').length === 1);
+t('코드블록으로 감싼 경우',
+  parseJson('```json\n[{"name":"A"}]\n```').length === 1);
+t('앞뒤에 설명이 붙은 경우',
+  parseJson('다음과 같습니다:\n[{"name":"A"}]\n도움이 되셨길').length === 1);
+
+// solar-pro3 가 배열을 여러 개로 쪼개 뱉던 사례
+t('배열을 여러 개로 쪼개 뱉은 경우 병합',
+  parseJson('[{"name":"A"}]\n[{"name":"B"}]\n[{"name":"C"}]').length === 3);
+
+// ★ max_tokens 에 걸려 잘린 응답 — 1단계를 두 번 멈추게 한 원인
+const truncated = '[{"name":"SQL","reason":"데이터 추출"},{"name":"Python","reason":"분석 자동화"},{"name":"통계';
+t('잘린 배열에서 완성된 객체를 건진다',
+  parseJson(truncated).length === 2);
+t('건진 객체의 내용이 온전하다',
+  parseJson(truncated)[0].name === 'SQL' && parseJson(truncated)[1].name === 'Python');
+t('첫 항목부터 잘렸으면 빈 배열',
+  parseJson('[{"name":"SQ').length === 0);
+t('빈 문자열 / null 에 터지지 않는다',
+  parseJson('').length === 0 && parseJson(null).length === 0);
+t('JSON 이 전혀 없으면 기본값',
+  parseJson('죄송합니다. 찾지 못했습니다.').length === 0);
+t('문자열 안의 중괄호에 속지 않는다',
+  parseJson('[{"name":"A","reason":"객체는 {} 로 쓴다"}]')[0].reason === '객체는 {} 로 쓴다');
 
 // ─────────────────────────────────────────────
 //  4. 링크 종류 판별 (linkKind)
@@ -252,6 +289,11 @@ t('이행으로 얻었던 기술도 함께 사라진다', !undone.skills.some((s
 // ─────────────────────────────────────────────
 const total = pass + failures.length;
 console.log(`\n${'─'.repeat(46)}`);
+console.log('그룹별 개수 (보고서 8.5 표는 이 값을 그대로 쓴다)');
+for (const [name, n] of counts) console.log(`  ${String(n).padStart(3)}  ${name}`);
+console.log(`  ${String(total).padStart(3)}  합계`);
+console.log('─'.repeat(46));
+
 if (failures.length) {
   console.log(`❌ ${total}개 중 ${failures.length}개 실패\n`);
   failures.forEach((f) => console.log(`   ${f}`));

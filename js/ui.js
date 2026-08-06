@@ -267,7 +267,7 @@ const STAGE_ORDER = [STAGE.REQUIRED_SKILLS, STAGE.GAP_ANALYSIS, STAGE.PROGRAM_SE
  * @param {HTMLElement} mount
  * @returns {(event: import('./types.js').StageEvent) => void} 파이프라인 진행에 맞춰 호출할 업데이트 함수
  */
-export function renderProgress(mount) {
+export function renderProgress(mount, handlers = {}) {
   mount.innerHTML = `
     <h2 class="text-xl font-bold mb-6">분석하고 있어요</h2>
     <ul id="stage-list" class="space-y-3">
@@ -280,9 +280,40 @@ export function renderProgress(mount) {
       ).join('')}
     </ul>
     <div id="stage-detail" class="mt-6 text-sm text-secondary space-y-1"></div>
+    <!-- 실패했을 때 나갈 길. 평소에는 비어 있다. -->
+    <div id="stage-actions" class="mt-6"></div>
   `;
 
   const detail = mount.querySelector('#stage-detail');
+  const actions = mount.querySelector('#stage-actions');
+
+  /**
+   * ★실패 화면에 반드시 나갈 길을 만든다.★
+   *
+   * 전에는 붉은 문구와 "잠시 후 다시 시도해주세요"만 그리고 끝이었다.
+   * 그 화면의 누를 수 있는 것은 헤더 버튼 두 개뿐이라, 사용자는 새로고침 말고
+   * 할 수 있는 게 없었다. 시연 중에 이러면 발표자도 굳는다.
+   */
+  function showRecovery() {
+    if (actions.dataset.shown) return;   // 오류가 여러 번 와도 한 번만 그린다
+    actions.dataset.shown = '1';
+    actions.innerHTML = `
+      <div class="flex gap-2">
+        ${handlers.onRetry ? `
+          <button id="btn-stage-retry"
+            class="flex-1 rounded bg-mjcblue hover:bg-mjcblue/90 transition-colors py-2.5 text-sm font-semibold text-white">
+            다시 시도하기
+          </button>` : ''}
+        ${handlers.onNewTarget ? `
+          <button id="btn-stage-back"
+            class="rounded border border-line hover:border-mjcblue transition-colors px-4 py-2.5 text-sm text-maintext">
+            목표 다시 입력
+          </button>` : ''}
+      </div>
+    `;
+    actions.querySelector('#btn-stage-retry')?.addEventListener('click', handlers.onRetry);
+    actions.querySelector('#btn-stage-back')?.addEventListener('click', handlers.onNewTarget);
+  }
 
   return function onStage(event) {
     const li = mount.querySelector(`li[data-stage="${event.stage}"]`);
@@ -295,8 +326,8 @@ export function renderProgress(mount) {
           el.outerHTML = '<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>';
         });
         detail.insertAdjacentHTML('beforeend',
-          `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>
-           <p class="text-secondary text-xs">잠시 후 다시 시도해주세요.</p>`);
+          `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>`);
+        showRecovery();
       }
       return;
     }
@@ -336,6 +367,7 @@ export function renderProgress(mount) {
     } else if (event.status === 'error') {
       icon.outerHTML = `<span class="stage-icon w-4 h-4 shrink-0 rounded-full bg-red-600"></span>`;
       detail.insertAdjacentHTML('beforeend', `<p class="text-red-600">${esc(event.message || '오류가 발생했어요')}</p>`);
+      showRecovery();
     }
   };
 }

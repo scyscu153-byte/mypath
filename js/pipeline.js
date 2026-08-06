@@ -216,7 +216,7 @@ export function sortForDisplay(list) {
  * 모델이 ```json ... ``` 로 감싸거나 앞뒤에 말을 붙이는 경우가 있다.
  * 첫 번째 배열/객체만 잘라내서 파싱한다.
  */
-function parseJson(text, fallback = []) {
+export function parseJson(text, fallback = []) {
   if (!text) return fallback;
   let s = String(text).trim();
 
@@ -254,7 +254,58 @@ function parseJson(text, fallback = []) {
     if (merged.length) return merged;
   }
 
+  // ④ ★ 응답이 도중에 잘린 경우 — 완성된 객체만 건져낸다
+  //
+  //    max_tokens 에 걸려 이렇게 끝나는 일이 실제로 있다:
+  //      [{"name":"SQL",...},{"name":"Python",...},{"name":"통계
+  //                                                          ↑ 여기서 끝
+  //    ③은 depth 0 에서만 덩어리를 뱉는데, 여는 [ 가 닫히지 않아
+  //    depth 가 0 으로 돌아오지 않는다. → ★완성된 객체가 2개 있어도 전부 버려진다.★
+  //    그러면 1단계가 0건이 되고 파이프라인이 그 자리에서 멈춘다.
+  //    (2026-08-07 심사 시뮬레이션에서 「웹 프론트엔드 개발자」로 재현됐다)
+  //
+  //    잘린 마지막 항목만 버리고 나머지는 살린다. 8개 중 6개라도 분석은 된다.
+  const salvaged = extractObjects(s);
+  if (salvaged.length) {
+    console.warn(`[파서] 응답이 잘린 것으로 보입니다. 완성된 객체 ${salvaged.length}개를 건졌습니다.`);
+    return salvaged;
+  }
+
   return fallback;
+}
+
+/**
+ * 배열이 닫혔든 안 닫혔든 상관없이, 균형이 맞는 객체 `{...}` 를 전부 찾는다.
+ * 대괄호는 세지 않고 중괄호만 센다 — 잘린 배열 안의 객체를 건지는 것이 목적이다.
+ */
+function extractObjects(s) {
+  const out = [];
+  let depth = 0, startIdx = -1, inStr = false, esc = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+
+    if (c === '{') {
+      if (depth === 0) startIdx = i;
+      depth++;
+    } else if (c === '}') {
+      if (depth === 0) continue;
+      depth--;
+      if (depth === 0 && startIdx >= 0) {
+        try { out.push(JSON.parse(s.slice(startIdx, i + 1))); } catch { /* 이 덩어리는 버린다 */ }
+        startIdx = -1;
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -397,7 +448,13 @@ ${JSON_ONLY}`,
 
 형식:
 [{"name":"역량명","reason":"왜 필요한지 한 줄","sourceUrl":"출처"}]`,
-    maxTokens: 1500,
+    // ★ 1500 → 2600.
+    //   한국어는 토큰을 많이 먹는다. 8개 항목에 이유와 URL 까지 붙으면
+    //   1500 에서 배열 중간이 잘리고, 그러면 1단계가 0건이 되어 파이프라인이 멈춘다.
+    //   페르소나 평가에서 이미 같은 일을 겪었다(900 → 2500).
+    //   파서도 잘린 배열을 구제하도록 고쳤지만(parseJson ④),
+    //   애초에 안 잘리게 하는 것이 먼저다.
+    maxTokens: 2600,
   });
 
   const raw = parseJson(text, []);
@@ -1227,9 +1284,13 @@ export async function run({ profile, target, jobPostingUrl, interestAreas, onSta
     () => searchRequiredSkills(target, jobPostingUrl),
     '요구 역량을 찾는 중 문제가 생겼습니다. 잠시 후 다시 시도해주세요.');
   if (!requiredSkills.length) {
+    // ★ 사용자를 탓하지 않는다.
+    //   전에는 "목표를 조금 더 구체적인 직무명으로 적어보세요"였다.
+    //   그런데 이게 뜬 실제 사례가 「웹 프론트엔드 개발자」·「데이터 분석가」였다 —
+    //   둘 다 충분히 구체적인 직무명이다. 실패한 쪽은 사용자가 아니라 우리다.
+    //   원인은 대부분 검색 응답이 잘려서 파싱이 안 된 것이고, 다시 하면 대개 된다.
     emit(STAGE.REQUIRED_SKILLS, 'error', null,
-      '요구 역량을 찾지 못했습니다. 목표를 조금 더 구체적인 직무명으로 적어보세요. '
-      + '(위의 빠른 선택을 눌러도 됩니다)');
+      '검색 결과를 받아오지 못했습니다. 다시 시도하면 대개 해결됩니다.');
     throw new Error('요구 역량 없음');
   }
   emit(STAGE.REQUIRED_SKILLS, 'done', requiredSkills);
