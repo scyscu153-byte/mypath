@@ -22,8 +22,10 @@ globalThis.localStorage = new Proxy({
   getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
 });
 
-const { judgeAvailability, canRecommend, safeHttpUrl, linkKind, isStudentProgram, parseJson } =
-  await import('../js/pipeline.js');
+const {
+  judgeAvailability, canRecommend, safeHttpUrl, linkKind, isStudentProgram, parseJson,
+  isCurriculum, capCurriculum, sortForDisplay,
+} = await import('../js/pipeline.js');
 const P = await import('../js/profile.js');
 
 // ─────────────────────────────────────────────
@@ -159,6 +161,39 @@ t('JSON 이 전혀 없으면 기본값',
   parseJson('죄송합니다. 찾지 못했습니다.').length === 0);
 t('문자열 안의 중괄호에 속지 않는다',
   parseJson('[{"name":"A","reason":"객체는 {} 로 쓴다"}]')[0].reason === '객체는 {} 로 쓴다');
+
+// ─────────────────────────────────────────────
+//  3-C. 정규 교육과정 구분
+//
+//  수집 데이터에 「융복합 모듈전공 트랙 「…」」 카탈로그가 10건 들어 있다.
+//  걸러내지 않으면 화면 절반을 차지한다 — 실측에서 5장 중 2장이었다.
+//  다만 죽이지는 않는다. 맨 뒤로 보내고 개수만 제한한다.
+// ─────────────────────────────────────────────
+describe('3-C. 정규 교육과정 구분');
+
+const prg = (t) => ({ programTitle: t, availability: 'unknown', sourceStatus: null });
+
+t('모듈전공 트랙은 교육과정', isCurriculum(prg('융복합 모듈전공 트랙 「공공 빅데이터」')) === true);
+t('마이크로디그리는 교육과정', isCurriculum(prg('학위과정 연계 마이크로디그리 11개 과정')) === true);
+t('마이크로전공과정은 교육과정', isCurriculum(prg('「마이크로코딩」 마이크로전공과정')) === true);
+t('비교과 프로그램은 교육과정이 아니다',
+  isCurriculum(prg('2026학년도 하계방학 AI 비교과 프로그램')) === false);
+t('경진대회는 교육과정이 아니다', isCurriculum(prg('AI 모의면접 경진대회')) === false);
+t('현장실습은 교육과정이 아니다', isCurriculum(prg('WE-GO 현장실습 학기제 (자율)')) === false);
+
+const mixed = [
+  prg('융복합 모듈전공 트랙 「A」'), prg('AI 비교과 프로그램'),
+  prg('융복합 모듈전공 트랙 「B」'), prg('경진대회'), prg('마이크로디그리 과정'),
+];
+t('교육과정을 1건만 남긴다', capCurriculum(mixed, 1).filter(isCurriculum).length === 1);
+// mixed 안의 비교과는 「AI 비교과 프로그램」·「경진대회」 2건이다
+t('비교과 프로그램은 하나도 잃지 않는다',
+  capCurriculum(mixed, 1).filter((p) => !isCurriculum(p)).length === 2);
+t('max 를 늘리면 그만큼 남는다', capCurriculum(mixed, 2).filter(isCurriculum).length === 2);
+t('교육과정이 없으면 그대로', capCurriculum([prg('경진대회'), prg('특강')], 1).length === 2);
+
+const sorted = sortForDisplay([prg('융복합 모듈전공 트랙 「A」'), prg('AI 비교과 프로그램')]);
+t('정렬하면 교육과정이 뒤로 간다', isCurriculum(sorted[1]) && !isCurriculum(sorted[0]));
 
 // ─────────────────────────────────────────────
 //  4. 링크 종류 판별 (linkKind)

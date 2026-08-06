@@ -190,8 +190,46 @@ const AVAIL_RANK = { open: 0, upcoming: 1, ongoing: 2, unknown: 3, closed: 9 };
 /** 출처 검증 상태 우선순위 — 확인됨 > 미확인 > 깨짐 */
 const SOURCE_RANK = { verified: 0, unverified: 1, null: 1, undefined: 1, broken: 9 };
 
+/**
+ * 정규 교육과정인가 — 비교과 프로그램이 아니라 ★학과 커리큘럼★이다.
+ *
+ * 수집 143건 중 19건(13%)이 여기 해당하고, 그중 10건이
+ * 「융복합 모듈전공 트랙 「…」」 하나짜리 카탈로그다.
+ * 트랙 이름만 다른 항목이 10개나 있어서, 조금만 걸려도 우르르 올라와
+ * 화면의 절반을 차지한다. 실제로 "AI 엔지니어" 결과 5장 중 2장이 이것이었고,
+ * 그중 하나는 「사회조사분석」이었다 — 목표와 무관하다.
+ *
+ * ★죽이지는 않는다.★ 마이크로디그리가 진짜 답인 목표도 있다.
+ * 대신 맨 뒤로 보내고 개수를 제한한다(capCurriculum).
+ */
+const CURRICULUM_RE = /모듈전공|마이크로디그리|마이크로전공|통합전공|연계전공|복수전공|부전공|전공트랙|교육과정/;
+
+export function isCurriculum(p) {
+  return CURRICULUM_RE.test(String(p?.programTitle || ''));
+}
+
+/**
+ * 정규 교육과정 항목을 최대 `max`개만 남긴다.
+ * 비교과 프로그램을 밀어내지 않게 하는 것이 목적이다.
+ */
+export function capCurriculum(list, max = 1) {
+  let kept = 0;
+  return list.filter((p) => {
+    if (!isCurriculum(p)) return true;
+    kept += 1;
+    return kept <= max;
+  });
+}
+
 export function sortForDisplay(list) {
   return [...list].sort((a, b) => {
+    // ★ 정규 교육과정(모듈전공·마이크로디그리)은 비교과 프로그램 뒤로 보낸다.
+    //   "이 트랙을 이수하세요"는 "이 프로그램에 신청하세요"보다 훨씬 무거운 제안이고,
+    //   이 도구가 약속한 것은 갭을 메우는 ★프로그램★이다.
+    const ac = isCurriculum(a) ? 1 : 0;
+    const bc = isCurriculum(b) ? 1 : 0;
+    if (ac !== bc) return ac - bc;
+
     // ★ "관심 분야"는 목표 역량과 무관한 항목이라 맨 뒤로 보낸다.
     //   실측에서 어학 연수가 맨 위에 왔는데 4개 모델이 전부 2~3점을 줬다.
     //   학생이 직접 원한 것이므로 보여주는 게 맞지만, 갭을 메우는 것이 먼저다.
@@ -810,8 +848,13 @@ ${gapList}${interestBlock}
   const visible = verified.filter((p) => p.sourceStatus !== 'broken');
   const droppedForBrokenLink = verified.length - visible.length;
 
+  // 정규 교육과정은 최대 1건만 남긴다 — 카탈로그가 화면을 덮지 않게
+  const capped = capCurriculum(visible, 1);
+  const droppedForCurriculum = visible.length - capped.length;
+
   return {
-    matches: sortForDisplay(visible),
+    matches: sortForDisplay(capped),
+    droppedForCurriculum,
     removedSources: removed,
     droppedForSource,
     droppedForSchedule,
@@ -1224,6 +1267,11 @@ ${listText}
       sourceStatus: m.sourceStatus ?? null,
       sourceCheckedAt: m.sourceCheckedAt ?? null,
       sourceError: m.sourceError ?? null,
+      // ★이 함수는 필드를 하나씩 골라 새 객체를 만든다.★
+      //   여기 적지 않은 값은 조용히 사라진다.
+      //   poster 를 빠뜨려서, 서버는 포스터를 보내고 화면은 못 그리는 상태로
+      //   10회 측정을 통째로 낭비했다. 필드를 추가할 때 이 목록을 반드시 함께 고칠 것.
+      poster: m.poster ?? null,
 
       // P0-2 모집 상태
       availability: m.availability ?? 'unknown',
